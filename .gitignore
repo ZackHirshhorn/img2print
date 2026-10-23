@@ -5,3 +5,7 @@ build/
 dist/
 examples/output/
 .venv/
+web/node_modules/
+web/.npm-cache/
+web/openapi.json
+src/img2print/web/static/

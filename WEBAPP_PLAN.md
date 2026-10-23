@@ -79,9 +79,18 @@ browser (React SPA) ──JSON + upload──► FastAPI (img2print.web) ──�
 - `Settings` JSON round trip, unknown keys and validation; `Cache` LRU eviction and TTL; the CLI's `--settings`/`--save-settings` override behaviour.
 - Note: `MAX_UPLOAD_MB` must stay an integer, because it is passed to `UploadFile.read()`.
 
+### Step 3: frontend MVP (`web/`), first version
+- Built as planned below: `package.json` with exact pins, `vite.config.ts`, generated `src/api/schema.d.ts`, `src/api/client.ts`, `src/store.ts`, and the components `Dropzone`, `SettingsPanel`, `Results` and `Preview3D` (plus shared controls in `fields.tsx`), `App.tsx`, `index.html` and `styles.css`.
+- `web/.npmrc` keeps npm's cache in `web/.npm-cache`. npm 11 blocks esbuild's postinstall script; it isn't needed, because the binary comes from `@esbuild/win32-x64`.
+- `gen:api` needs `img2print-web` on PATH, so activate `.venv` first.
+- The palette is a comma-separated text field for now; Step 4's PaletteEditor replaces it. A material change rebuilds the current model so the grams update.
+- The base colour is a text field, so it is also replaced by the PaletteEditor.
+- Checked: `npm run build` (including `tsc --noEmit`) is clean, and a live `img2print-web` serves the SPA, its assets and the full API flow. **Not yet checked in a real browser:** the 3D view, dark mode and the narrow layout.
+- `.gitignore`: already has `web/node_modules/`, `web/.npm-cache/`, `web/openapi.json` and `src/img2print/web/static/`.
+
 ## Remaining
 
-### Step 3: frontend MVP (`web/`, Vite + React 18 + TS)
+### Step 3 (reference): frontend MVP (`web/`, Vite + React 18 + TS)
 - Pin exact versions in `package.json`, for example react 18.3.1, three 0.169, @react-three/fiber 8.17, @react-three/drei 9.114, @tanstack/react-query 5.59, zustand 4.5, vite 5.4, @vitejs/plugin-react 4.3, typescript 5.6 and openapi-typescript 7.4.
 - `vite.config.ts`: dev proxy `/api` to `http://127.0.0.1:8000`, with `build.outDir = "../src/img2print/web/static"` and `emptyOutDir: true`.
 - Types: the npm script `gen:api` runs `img2print-web --openapi openapi.json && openapi-typescript openapi.json -o src/api/schema.d.ts`. Then `src/api/client.ts` wraps the fetch calls and normalises errors: `detail` can be a string or a list of `{msg}`, and the "Value error, " prefix is stripped.
