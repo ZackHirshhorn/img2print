@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "img2print"
+version = "0.1.0"
+description = "Turn flat graphic designs into multi-colour 3D prints"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "pillow",
+    "scikit-image",
+    "shapely>=2.0",
+    "trimesh",
+    "mapbox_earcut",
+    "manifold3d",
+    "lxml",
+    "networkx",
+    "svgelements",
+]
+
+[project.optional-dependencies]
+pdf = ["pymupdf"]
+web = ["fastapi>=0.110", "uvicorn[standard]", "python-multipart", "pydantic>=2"]
+dev = ["pytest", "pymupdf", "fastapi>=0.110", "uvicorn[standard]", "python-multipart", "pydantic>=2", "httpx"]
+
+[project.scripts]
+img2print = "img2print.cli:main"
+img2print-web = "img2print.web.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"img2print.web" = ["static/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -1,0 +1,47 @@
+{
+  "permissions": {
+    "blockReadsOutsideWorkingDirectories": true,
+    "additionalDirectories": [
+      "C:\\Users\\Hezi\\AppData\\Local\\Temp\\claude\\c--Users-Hezi-img2print",
+      "C:\\Users\\Hezi\\.claude\\projects\\c--Users-Hezi-img2print\\memory"
+    ],
+    "deny": [
+      "Read(//c/Windows/**)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Program Files (x86)/**)",
+      "Read(//c/ProgramData/**)",
+      "Read(//c/Users/Public/**)",
+      "Read(~/Documents/**)",
+      "Read(~/Desktop/**)",
+      "Read(~/Downloads/**)",
+      "Read(~/.ssh/**)",
+      "Edit(//c/Windows/**)",
+      "Edit(//c/Program Files/**)",
+      "Edit(//c/Program Files (x86)/**)",
+      "Edit(//c/ProgramData/**)",
+      "Edit(//c/Users/Public/**)",
+      "Edit(~/Documents/**)",
+      "Edit(~/Desktop/**)",
+      "Edit(~/Downloads/**)",
+      "Edit(~/.ssh/**)",
+      "Edit(~/.claude/settings.json)",
+      "Edit(~/.claude/CLAUDE.md)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Read|Edit|Write|Glob|Grep|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-paths.ps1\"",
+            "timeout": 30,
+            "onFailure": "block",
+            "statusMessage": "Checking workspace boundary..."
+          }
+        ]
+      }
+    ]
+  }
+}
