@@ -1,0 +1,13 @@
+.git/
+.claude/
+**/__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+build/
+dist/
+examples/output/
+web/node_modules/
+web/.npm-cache/
+web/openapi.json
+src/img2print/web/static/

@@ -1,0 +1,9 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: img2print
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/info
+    autoDeploy: true
