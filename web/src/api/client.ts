@@ -8,7 +8,6 @@ export type Trace = S["Trace"];
 export type BuiltModel = S["BuiltModel"];
 export type PartStats = S["PartStats"];
 export type Info = S["Info"];
-export type Preset = S["Preset"];
 export type Swatch = S["Swatch"];
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -16,14 +15,17 @@ export const DEFAULT_SETTINGS: Settings = {
   width: 100,
   height: null,
   longest: null,
+  stacking: "top",
   base: 1.2,
   layer: 0.8,
+  thickness: 2,
+  base_color: "white",
   corner_radius: 10,
+  padding: 0,
   raised: false,
-  face_down: false,
   threshold: 0.5,
   invert: false,
-  colors: null,
+  colors: 2,
   palette: null,
   background: null,
   smooth: 0.6,

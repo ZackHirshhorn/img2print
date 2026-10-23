@@ -47,7 +47,7 @@ def test_info_and_health(client):
     info = client.get("/api/info").json()
     assert info["version"] == img2print.__version__
     assert "PLA" in info["materials"]
-    assert info["presets"] and info["max_upload_mb"] == api.MAX_UPLOAD_MB
+    assert info["materials"] and info["max_upload_mb"] == api.MAX_UPLOAD_MB
     assert client.get("/api/health").json() == {"ok": True}
 
 
@@ -215,7 +215,7 @@ def test_settings_round_trip(tmp_path):
     s.save(tmp_path / "s.json")
     assert Settings.load(tmp_path / "s.json") == s
     assert s.color_mode and not Settings().color_mode
-    assert s.size() == {"height": 40, "longest": None, "page": 1}
+    assert s.size() == {"width": None, "height": 40, "longest": None, "page": 1}
 
 
 def test_settings_rejects_unknown_and_invalid():

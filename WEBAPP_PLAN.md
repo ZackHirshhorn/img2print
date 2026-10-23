@@ -46,7 +46,7 @@ browser (React SPA) ──JSON + upload──► FastAPI (img2print.web) ──�
 - `cache.py`: a thread-safe LRU with a byte budget and a TTL.
 - `schemas.py`: pydantic request and response models. `Settings` is the library dataclass itself, so there is one definition.
 - `api.py`: the routes, all under `/api`.
-  - `GET /info`: version, whether PDF is available, materials, printer presets, upload limit.
+  - `GET /info`: version, whether PDF is available, materials, upload limit.
   - `GET /health`
   - `POST /uploads` (multipart `file`):
     - Returns `{id (sha256), filename, kind raster|svg|pdf, width, height, pages, colors[{color, name, share}]}`.
@@ -54,7 +54,7 @@ browser (React SPA) ──JSON + upload──► FastAPI (img2print.web) ──�
   - `POST /trace` `{upload_id, settings}`:
     - Returns `{width, height, layers[{name, color, area, path}]}`.
     - `path` is SVG path data in mm, with y down; fill it with the even-odd rule.
-    - Traces are cached and keyed without the plate-only options (base, layer, corner_radius, raised, face_down), so a rebuild after changing only those skips tracing.
+    - Traces are cached and keyed without the plate-only options (base, layer, thickness, base_color, corner_radius, raised, stacking), so a rebuild after changing only those skips tracing.
   - `POST /models` `{upload_id, settings, material}`:
     - Returns `{id, size, material, parts[{…stats, stl_url}], trace, glb_url, threemf_url, zip_url}`.
     - Limits: at most 2 builds at once, with a 120 s timeout.
@@ -98,11 +98,9 @@ browser (React SPA) ──JSON + upload──► FastAPI (img2print.web) ──�
 - Components:
   - **Dropzone**: drag-drop, paste or browse. Shows a thumbnail through an object URL, a PDF page picker when `pages > 1`, and the file name with `dir="auto"`.
   - **SettingsPanel**:
-    - Size: a width/height/longest switch plus mm.
-    - Mode: 2-colour or colour.
-    - Thickness: base and layer, with the step taken from the preset layer height. Choosing a preset rounds them to whole layers.
-    - Style: raised, face-down, corner radius.
-    - 2-colour: threshold slider and invert.
+    - Size: a width/height/longest switch plus mm, and padding (a blank border inside that size).
+    - Colours: a count or a palette, and the background colour. There is no separate black-and-white mode: 2 colours covers it.
+    - Style: how the colours are stacked, then corner radius. "Full depth" (each colour runs the whole plaque thickness), "Top only" (a plain base in a chosen filament, the whole design in the top layer; the default) or "By layers" (a base in the background colour, the other colours in a layer on top). No printer presets or face-down: those belong to the slicer. "Raised" is library and CLI only.
     - Colour: a count, or a palette.
     - Advanced: smooth, min_area, simplify.
   - **Results**:
@@ -122,7 +120,7 @@ browser (React SPA) ──JSON + upload──► FastAPI (img2print.web) ──�
 - **Preview2D**: an SVG with `viewBox="0 0 w h"`. Behind it, the original (an `<image>` with `preserveAspectRatio="none"`, raster and SVG only) with an opacity slider. On top, the layer paths with `fill-rule="evenodd"`, which can be toggled. Wheel zoom and drag pan through the viewBox. Live updates from `/api/trace` through react-query, keyed on (upload id, settings), with a 300 ms debounce and `placeholderData: keepPreviousData`.
 - **PaletteEditor**: swatches seeded from `upload.colors`. You can edit (colour input), delete, add and reorder them, and pick the background. Its output is `settings.palette` and `settings.background`.
 - **Settings file**: save the settings as JSON (Blob download) and load them back (file input). This is the same format as the CLI's `--settings`.
-- Presets come from `/api/info`. Show the error and the 504 "too long" messages inline.
+- Show the error and the 504 "too long" messages inline.
 
 ### Step 5: packaging and deployment
 - `Dockerfile`, multi-stage:

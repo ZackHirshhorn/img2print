@@ -20,10 +20,12 @@ pip install -e .[dev]       # + pytest
 ```
 img2print logo.png                          # 100 mm wide flush tile
 img2print logo.png --width 80 --raised      # letters stand 0.8 mm above the plate
+img2print logo.png --thickness 2            # every colour runs the full 2 mm, instead of a base + colour layer
+img2print logo.png --padding 5              # 5 mm blank border; the plate stays 100 mm wide
 img2print logo.png --height 40              # or size by height ...
 img2print logo.png --longest 120            # ... or by the longer side
 img2print logo.svg --colors 3               # vector input: SVG or PDF (--page 2 for another PDF page)
-img2print logo.png --face-down              # colour face prints on the bed (smooth / textured PEI finish)
+img2print logo.png --colors 3 --base-color grey  # plain grey base, the full design only in the top layer
 img2print logo.png --invert --threshold 0.4 # light-on-dark artwork
 img2print logo.png --colors 4              # colour artwork: find 4 colours (background included)
 img2print logo.png --palette white,black,#d42a1f   # or name the filaments yourself

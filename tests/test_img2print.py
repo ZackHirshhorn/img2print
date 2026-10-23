@@ -71,15 +71,6 @@ def test_two_color_tile(raised):
     assert model.bounds[1][2] == pytest.approx(1.5)
 
 
-def test_face_down_keeps_footprint():
-    art = img2print.trace_image(make_image(), width=100)
-    up = img2print.two_color_tile(art)
-    down = img2print.two_color_tile(art, face_down=True)
-    np.testing.assert_allclose(up.bounds, down.bounds, atol=1e-6)
-    # the black layer now touches the build plate
-    assert down["black"].mesh.bounds[0][2] == pytest.approx(0.0)
-
-
 def test_custom_plate_clips_artwork():
     art = img2print.trace_image(make_image(), width=100)
     model = img2print.two_color_tile(art, plate=img2print.rounded_rect(50, 50))   # left half only
@@ -156,6 +147,67 @@ def test_multi_color_tile(raised):
     plate_area = 100 * 50
     expected_white = plate_area * 1.0 + (0 if raised else plate_area * 0.5 - ink)
     assert model["white"].mesh.volume == pytest.approx(expected_white, rel=1e-3)
+
+
+def test_full_depth_tiles():
+    art = img2print.trace_image(make_image(), width=100)
+    model = img2print.two_color_tile(art, corner_radius=0, thickness=3)
+    assert all(p.mesh.is_watertight for p in model)
+    assert model["black"].mesh.volume == pytest.approx(art.area * 3, rel=1e-3)
+    assert model["white"].mesh.volume == pytest.approx((100 * 50 - art.area) * 3, rel=1e-3)
+    assert model.bounds[0][2] == pytest.approx(0) and model.bounds[1][2] == pytest.approx(3)
+
+    layers = img2print.trace_colors(make_color_image(), width=100, colors=4)
+    model = img2print.multi_color_tile(layers, corner_radius=0, thickness=2)
+    assert [p.name for p in model] == ["white", "black", "red", "blue"]
+    assert sum(p.mesh.volume for p in model) == pytest.approx(100 * 50 * 2, rel=1e-3)
+
+
+def test_full_depth_from_settings():
+    from img2print.pipeline import build
+    from img2print.settings import Settings
+    model, _ = build(make_image(), Settings(width=100, colors=2, stacking="full", thickness=2.5))
+    assert model.bounds[1][2] - model.bounds[0][2] == pytest.approx(2.5)
+    with pytest.raises(ValueError, match="thickness"):
+        Settings(thickness=0)
+    with pytest.raises(ValueError, match="stacking"):
+        Settings(stacking="sideways")
+
+
+def test_padding_keeps_the_plate_size():
+    from img2print.pipeline import build
+    from img2print.settings import Settings
+    plain, plain_layers = build(make_image(), Settings(width=100, colors=2, corner_radius=0))
+    model, layers = build(make_image(), Settings(width=100, colors=2, corner_radius=0, padding=5))
+    # 100 mm wide in all; the 90 x 45 mm design plus 5 mm all round
+    np.testing.assert_allclose(model.bounds[:, :2], [[0, 0], [100, 55]], atol=1e-6)
+    assert layers[0].width == pytest.approx(90)
+    # the design shrinks to 90 mm and sits 5 mm in from the edge
+    assert model["black"].mesh.volume == pytest.approx(plain["black"].mesh.volume * 0.81, rel=1e-2)
+    ink_min = model["black"].mesh.bounds[0][:2]
+    assert ink_min == pytest.approx(5 + plain["black"].mesh.bounds[0][:2] * 0.9, abs=1e-3)
+    with pytest.raises(ValueError, match="padding"):
+        Settings(width=10, padding=5)
+
+
+def test_plain_base_under_coloured_top():
+    layers = img2print.trace_colors(make_color_image(), width=100, colors=4)
+    model = img2print.multi_color_tile(layers, base=1.0, layer=0.5, corner_radius=0, base_color="grey")
+    assert [p.name for p in model] == ["base", "white", "black", "red", "blue"]
+    assert model["base"].color == "#808080"
+    assert all(p.mesh.is_watertight for p in model)
+    assert model["base"].mesh.volume == pytest.approx(100 * 50 * 1.0, rel=1e-3)
+    top = sum(p.mesh.volume for p in model if p.name != "base")
+    assert top == pytest.approx(100 * 50 * 0.5, rel=1e-3)
+    assert min(p.mesh.bounds[0][2] for p in model if p.name != "base") == pytest.approx(1.0)
+    # a base in the background colour is just the background, as in "layers"
+    same = img2print.multi_color_tile(layers, base=1.0, layer=0.5, corner_radius=0, base_color="#fff")
+    assert [p.name for p in same] == ["white", "black", "red", "blue"]
+
+    from img2print.pipeline import build
+    from img2print.settings import Settings
+    model, _ = build(make_image(), Settings(width=100, stacking="top", base_color="red"))
+    assert [p.name for p in model] == ["base", "white", "black"]
 
 
 def test_multi_color_tile_later_layer_wins():

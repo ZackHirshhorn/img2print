@@ -166,6 +166,7 @@ button, .button {
 button:disabled { opacity: 0.5; cursor: default; }
 
 .muted { color: var(--muted); }
+.hint { font-size: 12px; margin: -4px 0 10px; }
 .small { font-size: 12px; }
 .error { color: var(--error); }
 

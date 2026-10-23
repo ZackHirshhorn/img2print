@@ -69,18 +69,8 @@ class BuiltModel(BaseModel):
     zip_url: str
 
 
-class Preset(BaseModel):
-    id: str
-    name: str
-    nozzle: float
-    layer_height: float
-    base: float
-    layer: float
-
-
 class Info(BaseModel):
     version: str
     pdf: bool = Field(description="whether PDF input is available")
     materials: list[str]
-    presets: list[Preset]
     max_upload_mb: int

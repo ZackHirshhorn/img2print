@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from shapely.affinity import translate
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
-from .colors import unique_names
+from .colors import parse_color, to_hex, unique_names
 from .geometry import as_polygons, extrude, rounded_rect, union
 from .image import ImageSource
 from .model import Model, Part
@@ -18,9 +19,11 @@ def two_color_tile(
     base: float = 1.2,
     layer: float = 0.8,
     corner_radius: float = 10.0,
+    padding: float = 0.0,
     plate: Polygon | None = None,
     raised: bool = False,
-    face_down: bool = False,
+    thickness: float | None = None,
+    base_color: str | None = None,
     ink: tuple[str, str] = ("black", "#000000"),
     paper: tuple[str, str] = ("white", "#ffffff"),
 ) -> Model:
@@ -29,25 +32,24 @@ def two_color_tile(
     base           paper-colour base plate thickness, mm.
     layer          thickness of the 2-colour layer / ink relief height, mm.
     corner_radius  rounding of the default plate (the image rectangle), mm.
-    plate          custom plate outline in mm; overrides the rounded rectangle.
+    padding        blank border around the image on the default plate, mm.
+    plate          custom plate outline in mm; overrides the rounded rectangle and padding.
     raised         ink stands above a plain plate instead of being inlaid flush.
-    face_down      flip so the 2-colour face prints on the build plate.
+    thickness      instead of base and layer: every colour runs this full thickness, mm.
+    base_color     print the base as its own part in this colour, with the whole design
+                   (paper included) in the layer on top. Default: the base is paper.
     ink, paper     (part name, display colour) of each material.
     """
-    if plate is None:
-        plate = rounded_rect(artwork.width, artwork.height, corner_radius)
-    ink_2d = artwork.geometry.intersection(plate)
+    plate, offset = _plate(plate, artwork, corner_radius, padding)
+    ink_2d = translate(artwork.geometry, offset, offset).intersection(plate)
 
-    ink_mesh = extrude(ink_2d, layer, z0=base)
+    ink_mesh = extrude(ink_2d, layer, z0=base) if thickness is None else extrude(ink_2d, thickness)
     if ink_mesh is None:
         raise ValueError("no ink regions inside the plate; try invert or a different threshold")
 
-    paper_mesh = extrude(plate, base)
-    if not raised:
-        paper_mesh = union(paper_mesh, extrude(plate.difference(ink_2d), layer, z0=base))
-
-    model = Model([Part(paper[0], paper_mesh, paper[1]), Part(ink[0], ink_mesh, ink[1])])
-    return model.flip_face_down() if face_down else model
+    return Model(_background(plate, ink_2d, paper[0], paper[1], base=base, layer=layer, raised=raised,
+                             thickness=thickness, base_color=base_color)
+                 + [Part(ink[0], ink_mesh, ink[1])])
 
 
 def image_to_tile(
@@ -78,9 +80,11 @@ def multi_color_tile(
     base: float = 1.2,
     layer: float = 0.8,
     corner_radius: float = 10.0,
+    padding: float = 0.0,
     plate: Polygon | None = None,
     raised: bool = False,
-    face_down: bool = False,
+    thickness: float | None = None,
+    base_color: str | None = None,
     names: list[str] | None = None,
 ) -> Model:
     """Build a plate with any number of colours, one filament each.
@@ -99,14 +103,13 @@ def multi_color_tile(
     if len(names) != len(layers) or len(set(names)) != len(names):
         raise ValueError("names must be distinct, one per layer")
     background = layers[0]
-    if plate is None:
-        plate = rounded_rect(background.width, background.height, corner_radius)
+    plate, offset = _plate(plate, background, corner_radius, padding)
 
     # Clip each colour to the plate and remove what later colours cover.
     taken = Polygon()
     regions = []
     for art in reversed(layers[1:]):
-        region = art.geometry.intersection(plate).difference(taken)
+        region = translate(art.geometry, offset, offset).intersection(plate).difference(taken)
         polys = [p for p in as_polygons(region.buffer(0)) if p.area > 1e-4]   # drop slivers
         region = unary_union(polys) if polys else Polygon()
         taken = taken.union(region)
@@ -115,18 +118,36 @@ def multi_color_tile(
 
     parts = []
     for art, name, region in zip(layers[1:], names[1:], regions):
-        mesh = extrude(region, layer, z0=base)
+        mesh = extrude(region, layer, z0=base) if thickness is None else extrude(region, thickness)
         if mesh is not None:
             parts.append(Part(name, mesh, art.color))
     if not parts:
         raise ValueError("no coloured regions inside the plate; try more colours or a different background")
 
-    paper_mesh = extrude(plate, base)
-    if not raised:
-        paper_mesh = union(paper_mesh, extrude(plate.difference(taken), layer, z0=base))
+    return Model(_background(plate, taken, names[0], background.color, base=base, layer=layer,
+                             raised=raised, thickness=thickness, base_color=base_color) + parts)
 
-    model = Model([Part(names[0], paper_mesh, background.color)] + parts)
-    return model.flip_face_down() if face_down else model
+
+def _plate(plate, artwork, corner_radius, padding) -> tuple[Polygon, float]:
+    """The plate outline, and how far to shift the artwork onto it."""
+    if plate is not None:
+        return plate, 0.0
+    return rounded_rect(artwork.width + 2 * padding, artwork.height + 2 * padding, corner_radius), padding
+
+
+def _background(plate, taken, name, color, *, base, layer, raised, thickness, base_color) -> list[Part]:
+    """The parts around and under the colours (taken): the background, and a separate
+    base when base_color differs from the background colour."""
+    around = plate.difference(taken)
+    if thickness is not None:
+        mesh = extrude(around, thickness)
+        return [Part(name, mesh, color)] if mesh is not None else []
+    under = extrude(plate, base)
+    around = None if raised else extrude(around, layer, z0=base)
+    if base_color is None or color is None or parse_color(base_color) == parse_color(color):
+        return [Part(name, union(under, around), color)]
+    base_part = Part("base", under, to_hex(parse_color(base_color)))
+    return [base_part] + ([Part(name, around, color)] if around is not None else [])
 
 
 def image_to_multi_color_tile(

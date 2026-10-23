@@ -29,23 +29,15 @@ from ..settings import Settings
 from ..trace import Artwork
 from ..vector import load_vector, vector_kind
 from .cache import Cache
-from .schemas import BuildRequest, BuiltModel, Info, Layer, PartStats, Preset, Swatch, Trace, TraceRequest, Upload
+from .schemas import BuildRequest, BuiltModel, Info, Layer, PartStats, Swatch, Trace, TraceRequest, Upload
 
 MAX_UPLOAD_MB = 25
 MAX_PIXELS = 40_000_000       # larger raster images are refused (decompression bombs)
 MAX_BUILDS = 2                # builds running at once
 BUILD_TIMEOUT = 120.0         # seconds
 
-PRESETS = [
-    Preset(id="0.4-0.2", name="0.4 mm nozzle, 0.2 mm layers", nozzle=0.4, layer_height=0.2, base=1.2, layer=0.8),
-    Preset(id="0.4-0.12", name="0.4 mm nozzle, 0.12 mm fine layers", nozzle=0.4, layer_height=0.12,
-           base=1.2, layer=0.84),
-    Preset(id="0.6-0.3", name="0.6 mm nozzle, 0.3 mm layers", nozzle=0.6, layer_height=0.3, base=1.2, layer=0.9),
-    Preset(id="0.2-0.1", name="0.2 mm nozzle, 0.1 mm layers", nozzle=0.2, layer_height=0.1, base=1.0, layer=0.6),
-]
-
 # Options that only change the plate, not the tracing: builds that differ only in these reuse the trace.
-PLATE_OPTIONS = {"base", "layer", "corner_radius", "raised", "face_down"}
+PLATE_OPTIONS = {"stacking", "base", "layer", "thickness", "base_color", "corner_radius", "raised"}
 
 Image.MAX_IMAGE_PIXELS = MAX_PIXELS
 
@@ -83,8 +75,7 @@ router = APIRouter(prefix="/api")
 
 @router.get("/info", response_model=Info)
 def info() -> Info:
-    return Info(version=__version__, pdf=_has_pdf(), materials=list(DENSITY), presets=PRESETS,
-                max_upload_mb=MAX_UPLOAD_MB)
+    return Info(version=__version__, pdf=_has_pdf(), materials=list(DENSITY), max_upload_mb=MAX_UPLOAD_MB)
 
 
 @router.get("/health")

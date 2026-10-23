@@ -45,19 +45,6 @@ class Model:
     def bounds(self) -> np.ndarray:
         return np.array(trimesh.util.concatenate([p.mesh for p in self.parts]).bounds)
 
-    def flip_face_down(self) -> "Model":
-        """Rotate 180 deg about X so the top face lands on the build plate.
-
-        The design still reads correctly when the print is viewed from below.
-        Modifies the model in place and returns it.
-        """
-        (_, ymin, zmin), (_, ymax, zmax) = self.bounds
-        flip = trimesh.transformations.rotation_matrix(np.pi, [1, 0, 0])
-        for p in self.parts:
-            p.mesh.apply_transform(flip)
-            p.mesh.apply_translation([0, ymin + ymax, zmin + zmax])
-        return self
-
     def to_scene(self) -> trimesh.Scene:
         scene = trimesh.Scene()
         for p in self.parts:

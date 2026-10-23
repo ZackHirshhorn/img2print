@@ -60,7 +60,7 @@ export function App() {
       <main className="panes">
         <aside className="pane left">
           <Dropzone />
-          <SettingsPanel info={info.data} />
+          <SettingsPanel />
         </aside>
         <section className="pane centre" aria-label="Preview">
           <Preview3D model={model} />

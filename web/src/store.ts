@@ -8,7 +8,6 @@ export type SizeKey = "width" | "height" | "longest";
 interface State {
   settings: Settings;
   material: string;
-  presetId: string;
   autoBuild: boolean;
   upload: Upload | null;
   /** Object URL of the uploaded file, for the thumbnail. */
@@ -20,7 +19,6 @@ interface State {
   setSettings: (patch: Partial<Settings>) => void;
   setSize: (key: SizeKey, mm: number) => void;
   setMaterial: (material: string) => void;
-  setPresetId: (id: string) => void;
   setAutoBuild: (on: boolean) => void;
   setUpload: (upload: Upload, file: File) => void;
   setModel: (model: BuiltModel | null) => void;
@@ -33,7 +31,6 @@ export const useStore = create<State>()(
     (set, get) => ({
       settings: DEFAULT_SETTINGS,
       material: "PLA",
-      presetId: "0.4-0.2",
       autoBuild: false,
       upload: null,
       previewUrl: null,
@@ -45,7 +42,6 @@ export const useStore = create<State>()(
       setSize: (key, mm) =>
         set({ settings: { ...get().settings, width: null, height: null, longest: null, [key]: mm } }),
       setMaterial: (material) => set({ material }),
-      setPresetId: (presetId) => set({ presetId }),
       setAutoBuild: (autoBuild) => set({ autoBuild }),
       setUpload(upload, file) {
         const old = get().previewUrl;
@@ -70,13 +66,18 @@ export const useStore = create<State>()(
       partialize: (s) => ({
         settings: s.settings,
         material: s.material,
-        presetId: s.presetId,
         autoBuild: s.autoBuild,
       }),
-      // Settings saved by an older version get any new options from the defaults.
+      // Settings saved by an older version get any new options from the defaults, and lose the
+      // ones the app no longer offers (removed options, the black-and-white mode, raised colours).
+      // The app always opens on "Find colours", whatever was picked last time.
       merge: (saved, current) => {
         const s = saved as Partial<State> | undefined;
-        return { ...current, ...s, settings: { ...DEFAULT_SETTINGS, ...s?.settings } };
+        const known = Object.entries(s?.settings ?? {}).filter(([k]) => k in DEFAULT_SETTINGS);
+        const settings: Settings = { ...DEFAULT_SETTINGS, ...Object.fromEntries(known), raised: false };
+        settings.colors ??= DEFAULT_SETTINGS.colors;
+        settings.palette = null;
+        return { ...current, ...s, settings };
       },
     },
   ),

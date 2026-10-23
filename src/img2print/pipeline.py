@@ -21,10 +21,12 @@ def trace_layers(source: ImageSource, settings: Settings) -> list[Artwork]:
     In 2-colour mode this is [paper, ink]: the paper layer is the image rectangle minus the ink.
     """
     s = settings
+    size = s.size()
+    width = size.pop("width")
     if s.color_mode:
-        return trace_colors(source, s.width, s.colors, s.palette, s.background,
-                            s.smooth, s.min_area, s.simplify, **s.size())
-    ink = trace_image(source, s.width, s.invert, s.threshold, s.min_area, s.simplify, **s.size())
+        return trace_colors(source, width, s.colors, s.palette, s.background,
+                            s.smooth, s.min_area, s.simplify, **size)
+    ink = trace_image(source, width, s.invert, s.threshold, s.min_area, s.simplify, **size)
     ink.color = INK[1]
     paper = Artwork(ink.frame.difference(ink.geometry), ink.width, ink.height, PAPER[1])
     return [paper, ink]

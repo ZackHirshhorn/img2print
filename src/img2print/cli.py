@@ -31,10 +31,14 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--base", type=float, help="white base plate thickness, mm (default 1.2)")
     ap.add_argument("--layer", type=float,
                     help="thickness of the 2-colour layer / black relief height, mm (default 0.8)")
+    ap.add_argument("--thickness", type=float,
+                    help="instead of --base and --layer: every colour runs this full plate thickness, mm")
+    ap.add_argument("--base-color",
+                    help="print the base plain in this colour, with the whole design in --layer on top")
     ap.add_argument("--corner-radius", type=float, help="plate corner rounding radius, mm (default 10)")
+    ap.add_argument("--padding", type=float,
+                    help="blank border around the design, mm, inside the size given (default 0)")
     ap.add_argument("--raised", action="store_true", help="black stands above a plain white plate")
-    ap.add_argument("--face-down", action="store_true",
-                    help="flip so the 2-colour face is on the build plate (smooth/textured finish)")
     ap.add_argument("--threshold", type=float,
                     help="darkness threshold 0..1, 2-colour mode only (default 0.5)")
     ap.add_argument("--invert", action="store_true",
@@ -67,6 +71,12 @@ def main(argv: list[str] | None = None) -> None:
         settings = Settings.load(args.pop("settings")) if "settings" in args else Settings()
         if any(k in args for k in SIZES):
             settings = replace(settings, width=None, height=None, longest=None)
+        if "thickness" in args:
+            args["stacking"] = "full"
+        elif "base_color" in args:
+            args["stacking"] = "top"
+        elif any(k in args for k in ("base", "layer", "raised")) and settings.stacking == "full":
+            args["stacking"] = "layers"
         settings = replace(settings, **args)
 
         layers = trace_layers(img_path, settings)

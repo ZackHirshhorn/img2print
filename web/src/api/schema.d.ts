@@ -218,8 +218,6 @@ export interface components {
             pdf: boolean;
             /** Materials */
             materials: string[];
-            /** Presets */
-            presets: components["schemas"]["Preset"][];
             /** Max Upload Mb */
             max_upload_mb: number;
         };
@@ -268,24 +266,10 @@ export interface components {
             /** Stl Url */
             stl_url: string;
         };
-        /** Preset */
-        Preset: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            /** Nozzle */
-            nozzle: number;
-            /** Layer Height */
-            layer_height: number;
-            /** Base */
-            base: number;
-            /** Layer */
-            layer: number;
-        };
         /**
          * Settings
-         * @description Every option of a print job. Give at most one of width, height or longest (mm).
+         * @description Every option of a print job. Give at most one of width, height or longest (mm):
+         *     the size of the finished plate, padding included.
          *
          *     Colour mode is used when colors or palette is set; otherwise the image becomes a
          *     2-colour (black / white) plate. page counts from 1, as on the command line.
@@ -303,6 +287,11 @@ export interface components {
             /** Longest */
             longest?: number | null;
             /**
+             * Stacking
+             * @default layers
+             */
+            stacking: string;
+            /**
              * Base
              * @default 1.2
              */
@@ -313,20 +302,30 @@ export interface components {
              */
             layer: number;
             /**
+             * Thickness
+             * @default 2
+             */
+            thickness: number;
+            /**
+             * Base Color
+             * @default white
+             */
+            base_color: string;
+            /**
              * Corner Radius
              * @default 10
              */
             corner_radius: number;
             /**
+             * Padding
+             * @default 0
+             */
+            padding: number;
+            /**
              * Raised
              * @default false
              */
             raised: boolean;
-            /**
-             * Face Down
-             * @default false
-             */
-            face_down: boolean;
             /**
              * Threshold
              * @default 0.5
