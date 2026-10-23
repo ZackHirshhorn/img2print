@@ -12,11 +12,10 @@ browser (React SPA) ──JSON + upload──► FastAPI (img2print.web) ──�
   3D preview ◄── GLB    downloads ◄── 3MF / STL / ZIP      in-memory LRU caches (uploads, traces, models)
 ```
 
-## First steps after copying this folder to a local path
-1. `git init`, and commit the current state as the baseline.
-2. `pip install -e ".[web,dev]"` from the new location. The earlier editable install points at the Drive copy.
-3. `pytest`. 38 tests should pass. `pythonpath = ["src"]` is now set in `pyproject.toml`.
-4. Check: `img2print-web --open` shows a "frontend not built" page, and `/docs` shows the API.
+## Setup (done)
+- The project lives in `C:\Users\Hezi\img2print`, a git repo with `origin` at `git@github.com:ZackHirshhorn/img2print.git`.
+- Everything is installed in a local venv: `python -m venv .venv`, then `.venv\Scripts\python -m pip install -e ".[web,dev]"`. `.venv/` is in `.gitignore`.
+- MIT license (`LICENSE`, `license = "MIT"` in `pyproject.toml`, which needs setuptools>=77).
 
 ## Done
 
@@ -68,19 +67,19 @@ browser (React SPA) ──JSON + upload──► FastAPI (img2print.web) ──�
   - `create_app()` serves the API, plus the SPA from `web/static/`. Hashed `assets/` files are cached immutably, and other paths fall back to `index.html`. If the frontend isn't built, a short help page appears instead.
   - `main()` is the `img2print-web` command, with `--host` (default 127.0.0.1), `--port 8000`, `--open`, and `--openapi FILE` to write the schema for TS type generation.
 - `pyproject.toml`: added the `web` extra (fastapi, uvicorn[standard], python-multipart, pydantic>=2), web dependencies plus httpx in `dev`, the `img2print-web` script, package data `img2print.web: static/**/*`, and pytest `pythonpath = ["src"]`.
-- Smoke-tested by hand with TestClient on `../נפוליטנה.png`. Every endpoint works, in both 2-colour and `colors: 3` modes. **No automated web tests exist yet** (see step 2b).
+- Smoke-tested by hand with TestClient on `../נפוליטנה.png`. Every endpoint works, in both 2-colour and `colors: 3` modes.
+
+### Step 2b: backend tests (`tests/test_web.py`, 24 tests, FastAPI `TestClient`)
+- Info/health; PNG, SVG and PDF uploads (kind, size, swatches); empty, unreadable and oversized uploads (422/413).
+- Trace in 2-colour and colour modes, with areas matching `trace_image`/`trace_colors`; a trace is reused when only plate options change.
+- Bad settings give a 422 with the library's message; unknown upload/model/part ids give 404; an unknown material gives 422.
+- A blank image traces (empty ink layer) but building it gives 422.
+- Build in both modes, then GLB/3MF/STL/ZIP downloads parse back with `trimesh`, watertight, with STL volumes matching the stats.
+- A Hebrew file name round-trips through `filename*=UTF-8''…`.
+- `Settings` JSON round trip, unknown keys and validation; `Cache` LRU eviction and TTL; the CLI's `--settings`/`--save-settings` override behaviour.
+- Note: `MAX_UPLOAD_MB` must stay an integer, because it is passed to `UploadFile.read()`.
 
 ## Remaining
-
-### Step 2b: backend tests (`tests/test_web.py`, FastAPI `TestClient`)
-Reuse `make_image()` from `tests/test_img2print.py` and the SVG fixtures there. Cover:
-- PNG and SVG upload (PDF too when pymupdf is installed): kind, size and swatches.
-- Trace in 2-colour and colour modes: layer count and an area roughly equal to `trace_image(...).area`.
-- Build, then GLB/3MF/STL/ZIP downloads that parse back with `trimesh`, with every part watertight.
-- Bad settings (width plus height, threshold 3) give a 422 with the message.
-- An unknown upload id gives 404, and an upload over the size limit gives 413. Monkeypatch `MAX_UPLOAD_MB` small for this.
-- A Hebrew file name round-trips in `Content-Disposition`.
-- Unit tests for `Settings` (JSON round trip, unknown key, validation), `Cache` eviction, and the CLI's `--settings`/`--save-settings` override behaviour.
 
 ### Step 3: frontend MVP (`web/`, Vite + React 18 + TS)
 - Pin exact versions in `package.json`, for example react 18.3.1, three 0.169, @react-three/fiber 8.17, @react-three/drei 9.114, @tanstack/react-query 5.59, zustand 4.5, vite 5.4, @vitejs/plugin-react 4.3, typescript 5.6 and openapi-typescript 7.4.
