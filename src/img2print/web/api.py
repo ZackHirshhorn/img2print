@@ -34,6 +34,7 @@ from .schemas import (BuildRequest, BuiltModel, FilamentChange, Info, Layer, Par
 
 MAX_UPLOAD_MB = 25
 MAX_PIXELS = 40_000_000       # larger raster images are refused (decompression bombs)
+MAX_SIDE = 2000               # raster uploads are shrunk to this longest side, to bound build memory
 MAX_BUILDS = 2                # builds running at once
 BUILD_TIMEOUT = 120.0         # seconds
 
@@ -92,8 +93,10 @@ async def upload(file: UploadFile = File(...)) -> Upload:
     if not data:
         raise HTTPException(422, "the file is empty")
     source = Source(data, file.filename or "model", vector_kind(data) or "raster")
+    if source.kind == "raster":
+        source.data = await _run(_downscale, data)
     result = await _run(_analyze, source)
-    uploads.put(result.id, source, len(data))
+    uploads.put(result.id, source, len(source.data))
     return result
 
 
@@ -212,6 +215,20 @@ def _layers(upload_id: str, source: Source, settings: Settings) -> list[Artwork]
                    for a in layers for p in as_polygons(a.geometry))
         traces.put(key, layers, 64 * size + 1024)
     return layers
+
+
+def _downscale(data: bytes) -> bytes:
+    """Shrink a raster image to MAX_SIDE on its longest side, as PNG; small images are kept as they are.
+    A print cannot show more detail than this, and full-size phone photos run the server out of memory."""
+    im = open_image(data)
+    if max(im.size) <= MAX_SIDE:
+        return data
+    if im.mode not in ("RGB", "RGBA", "L", "LA"):
+        im = im.convert("RGBA")   # palette images would otherwise be resized without smoothing
+    im.thumbnail((MAX_SIDE, MAX_SIDE), Image.LANCZOS)
+    buf = io.BytesIO()
+    im.save(buf, "PNG")
+    return buf.getvalue()
 
 
 def _analyze(source: Source) -> Upload:
