@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from .image import ImageSource
 from .model import Model
-from .recipes import multi_color_tile, two_color_tile
+from .recipes import multi_color_tile, shape_with_design, two_color_tile
 from .settings import Settings
 from .trace import Artwork, trace_colors, trace_image
 
@@ -24,16 +24,24 @@ def trace_layers(source: ImageSource, settings: Settings) -> list[Artwork]:
     size = s.size()
     width = size.pop("width")
     if s.color_mode:
-        return trace_colors(source, width, s.colors, s.palette, s.background,
-                            s.smooth, s.min_area, s.simplify, **size)
-    ink = trace_image(source, width, s.invert, s.threshold, s.min_area, s.simplify, **size)
-    ink.color = INK[1]
-    paper = Artwork(ink.frame.difference(ink.geometry), ink.width, ink.height, PAPER[1])
-    return [paper, ink]
+        layers = trace_colors(source, width, s.colors, s.palette, s.background,
+                              s.smooth, s.min_area, s.simplify, **size)
+    else:
+        ink = trace_image(source, width, s.invert, s.threshold, s.min_area, s.simplify, **size)
+        ink.color = INK[1]
+        paper = Artwork(ink.frame.difference(ink.geometry), ink.width, ink.height, PAPER[1])
+        layers = [paper, ink]
+    fit = s.fit_box()
+    if fit is not None and layers[0].height > fit[1]:   # traced to the fit width: too tall
+        layers = [a.scaled(fit[1] / layers[0].height) for a in layers]
+    return layers
 
 
 def build_model(layers: list[Artwork], settings: Settings) -> Model:
     """Turn the layers from trace_layers() into a model, with the settings' recipe."""
+    if settings.recipe == "shape":
+        names = None if settings.color_mode else [PAPER[0], INK[0]]
+        return shape_with_design(layers, names=names, **settings.shape_options())
     if settings.color_mode:
         return multi_color_tile(layers, **settings.tile_options())
     return two_color_tile(layers[1], ink=INK, paper=PAPER, **settings.tile_options())

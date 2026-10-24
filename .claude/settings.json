@@ -27,21 +27,5 @@
       "Edit(~/.claude/settings.json)",
       "Edit(~/.claude/CLAUDE.md)"
     ]
-  },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash|PowerShell|Read|Edit|Write|Glob|Grep|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-paths.ps1\"",
-            "timeout": 30,
-            "onFailure": "block",
-            "statusMessage": "Checking workspace boundary..."
-          }
-        ]
-      }
-    ]
   }
 }

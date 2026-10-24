@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from shapely.affinity import scale
 from shapely.geometry import Polygon, box
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
@@ -47,6 +48,11 @@ class Artwork:
     @property
     def is_empty(self) -> bool:
         return self.geometry.is_empty
+
+    def scaled(self, factor: float) -> "Artwork":
+        """The same artwork, factor times the size."""
+        return Artwork(scale(self.geometry, factor, factor, origin=(0, 0)),
+                       self.width * factor, self.height * factor, self.color)
 
 
 def output_scale(

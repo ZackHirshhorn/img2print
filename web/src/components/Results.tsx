@@ -88,6 +88,23 @@ export function Results({ info, model, building, error, stale, onBuild }: {
             </p>
           )}
 
+          {model.filament_changes.length > 0 && (
+            <div className="filament-changes">
+              <p className="field-label">Colour by layer: start with {model.parts[0].name}, then pause and load</p>
+              <ul>
+                {model.filament_changes.map((c) => (
+                  <li key={c.name}>
+                    <span className="chip" style={{ background: c.color ?? "#888" }} />
+                    <span dir="auto">{c.name}</span> at {fmt(c.height, 2)} mm
+                  </li>
+                ))}
+              </ul>
+              <p className="muted small">
+                In the slicer, add a filament change (pause / M600) at the first layer that starts at each height.
+              </p>
+            </div>
+          )}
+
           <div className="downloads">
             <a className="button primary" href={model.threemf_url} download>Download 3MF</a>
             <a className="button" href={model.zip_url} download>All files (ZIP)</a>

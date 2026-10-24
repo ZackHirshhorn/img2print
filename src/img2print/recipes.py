@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import numpy as np
 from shapely.affinity import translate
-from shapely.geometry import Polygon
+from shapely.geometry import Point, Polygon, box
 from shapely.ops import unary_union
 
 from .colors import parse_color, to_hex, unique_names
@@ -11,6 +12,17 @@ from .geometry import as_polygons, extrude, rounded_rect, union
 from .image import ImageSource
 from .model import Model, Part
 from .trace import Artwork, trace_colors, trace_image
+
+SHAPES = ("box", "cylinder")
+# The design's right, up and outward directions on each face, so it reads correctly from outside.
+FACES = {
+    "top": ((1, 0, 0), (0, 1, 0), (0, 0, 1)),
+    "bottom": ((1, 0, 0), (0, -1, 0), (0, 0, -1)),
+    "front": ((1, 0, 0), (0, 0, 1), (0, -1, 0)),
+    "back": ((-1, 0, 0), (0, 0, 1), (0, 1, 0)),
+    "right": ((0, 1, 0), (0, 0, 1), (1, 0, 0)),
+    "left": ((0, -1, 0), (0, 0, 1), (-1, 0, 0)),
+}
 
 
 def two_color_tile(
@@ -22,6 +34,7 @@ def two_color_tile(
     padding: float = 0.0,
     plate: Polygon | None = None,
     raised: bool = False,
+    stacked: bool = False,
     thickness: float | None = None,
     base_color: str | None = None,
     ink: tuple[str, str] = ("black", "#000000"),
@@ -35,11 +48,15 @@ def two_color_tile(
     padding        blank border around the image on the default plate, mm.
     plate          custom plate outline in mm; overrides the rounded rectangle and padding.
     raised         ink stands above a plain plate instead of being inlaid flush.
+    stacked        colour by layer, see multi_color_tile(); with one ink this is raised, plus
+                   the filament change.
     thickness      instead of base and layer: every colour runs this full thickness, mm.
     base_color     print the base as its own part in this colour, with the whole design
                    (paper included) in the layer on top. Default: the base is paper.
     ink, paper     (part name, display colour) of each material.
     """
+    if stacked and (thickness is not None or base_color is not None):
+        raise ValueError("colour by layer stacks on a base in the paper colour; drop thickness and base_color")
     plate, offset = _plate(plate, artwork, corner_radius, padding)
     ink_2d = translate(artwork.geometry, offset, offset).intersection(plate)
 
@@ -47,9 +64,10 @@ def two_color_tile(
     if ink_mesh is None:
         raise ValueError("no ink regions inside the plate; try invert or a different threshold")
 
-    return Model(_background(plate, ink_2d, paper[0], paper[1], base=base, layer=layer, raised=raised,
-                             thickness=thickness, base_color=base_color)
-                 + [Part(ink[0], ink_mesh, ink[1])])
+    return Model(_background(plate, ink_2d, paper[0], paper[1], base=base, layer=layer,
+                             raised=raised or stacked, thickness=thickness, base_color=base_color)
+                 + [Part(ink[0], ink_mesh, ink[1])],
+                 [(base, ink[0])] if stacked else [])
 
 
 def image_to_tile(
@@ -83,6 +101,7 @@ def multi_color_tile(
     padding: float = 0.0,
     plate: Polygon | None = None,
     raised: bool = False,
+    stacked: bool = False,
     thickness: float | None = None,
     base_color: str | None = None,
     names: list[str] | None = None,
@@ -94,8 +113,16 @@ def multi_color_tile(
              two later layers overlap, the later one wins.
     names    part names, one per layer. Default: the nearest colour name
              ('black', 'red', 'red-2', ...).
+    stacked  colour by layer, for a printer with one nozzle and no colour changer: every
+             layer of the print is one colour. The background is the base; then each colour
+             in turn gets its own band, layer mm thick, one above the other. A colour's band
+             also runs under every later colour, holding it up, so from above each area shows
+             its own colour. The model's filament_changes say where to swap filament.
     The other options are as in two_color_tile().
     """
+    if stacked and (thickness is not None or base_color is not None):
+        raise ValueError("colour by layer stacks on a base in the background colour; "
+                         "drop thickness and base_color")
     if len(layers) < 2:
         raise ValueError("need a background and at least one colour; try more colours")
     if names is None:
@@ -116,16 +143,23 @@ def multi_color_tile(
         regions.append(region)
     regions.reverse()
 
-    parts = []
-    for art, name, region in zip(layers[1:], names[1:], regions):
-        mesh = extrude(region, layer, z0=base) if thickness is None else extrude(region, thickness)
-        if mesh is not None:
-            parts.append(Part(name, mesh, art.color))
-    if not parts:
+    colours = [(art, name, region) for art, name, region in zip(layers[1:], names[1:], regions)
+               if not region.is_empty]
+    if not colours:
         raise ValueError("no coloured regions inside the plate; try more colours or a different background")
+    parts, changes = [], []
+    for i, (art, name, region) in enumerate(colours):
+        if stacked:
+            z0 = base + i * layer
+            mesh = extrude(unary_union([r for *_, r in colours[i:]]), layer, z0=z0)
+            changes.append((z0, name))
+        else:
+            mesh = extrude(region, layer, z0=base) if thickness is None else extrude(region, thickness)
+        parts.append(Part(name, mesh, art.color))
 
     return Model(_background(plate, taken, names[0], background.color, base=base, layer=layer,
-                             raised=raised, thickness=thickness, base_color=base_color) + parts)
+                             raised=raised or stacked, thickness=thickness, base_color=base_color) + parts,
+                 changes)
 
 
 def _plate(plate, artwork, corner_radius, padding) -> tuple[Polygon, float]:
@@ -172,3 +206,79 @@ def image_to_multi_color_tile(
     layers = trace_colors(source, width, colors, palette, background, smooth, min_area, simplify,
                           height=height, longest=longest, page=page)
     return multi_color_tile(layers, **tile_options)
+
+
+def face_size(shape: str, size: tuple[float, float, float], face: str) -> tuple[float, float, float]:
+    """(width, height, depth) of one face of a shape: the face itself, and how deep the
+    shape is behind it, mm. size is (x, y, z) for a box, (diameter, unused, height) for a cylinder."""
+    if shape not in SHAPES:
+        raise ValueError(f"unknown shape {shape!r}; choose from {', '.join(SHAPES)}")
+    if face not in FACES:
+        raise ValueError(f"unknown face {face!r}; choose from {', '.join(FACES)}")
+    if shape == "cylinder" and face not in ("top", "bottom"):
+        raise ValueError("a cylinder's side is curved; put the design on its top or bottom")
+    extents = np.abs(np.array(FACES[face], dtype=float)) @ _extents(shape, size)
+    return tuple(float(e) for e in extents)
+
+
+def shape_with_design(
+    layers: list[Artwork],
+    *,
+    shape: str = "box",
+    size: tuple[float, float, float] = (40.0, 40.0, 40.0),
+    face: str = "top",
+    layer: float = 0.8,
+    raised: bool = False,
+    stacked: bool = False,
+    full_depth: bool = False,
+    base_color: str | None = None,
+    names: list[str] | None = None,
+) -> Model:
+    """A solid box or cylinder with the design on one of its faces.
+
+    shape       "box" (size is x, y, z in mm) or "cylinder" (size is diameter, unused, height).
+    face        top, bottom, front, back, left or right; a cylinder has only top and bottom.
+                The design is centred on the face, reads correctly from outside, and is
+                clipped to the face.
+    layer       depth of the design, mm: inlaid flush into the face, or standing out of it when raised.
+    stacked     colour by layer, as in multi_color_tile(): the colours stand out of the face, one
+                band each. Print it with the design face up; filament_changes count from the
+                opposite face, on the bed.
+    full_depth  every colour runs right through the shape, to the opposite face.
+    base_color  print the body as its own part in this colour, with the whole face (background
+                included) in the layer. Default: the body is the background colour.
+    layers, names  as in multi_color_tile().
+
+    The shape is built as a tile whose plate is the face, then turned onto that face.
+    """
+    face_w, face_h, depth = face_size(shape, size, face)
+    raised = raised or stacked
+    if not (raised or full_depth) and depth <= layer:
+        raise ValueError(f"the {shape} is only {depth:g} mm deep behind its {face} face; "
+                         f"the design layer ({layer:g} mm) needs more")
+    w, h = layers[0].width, layers[0].height
+    if shape == "box":
+        outline = box(-face_w / 2, -face_h / 2, face_w / 2, face_h / 2)
+    else:
+        outline = Point(0, 0).buffer(face_w / 2, quad_segs=64)
+    model = multi_color_tile(layers, base=depth if raised else depth - layer, layer=layer,
+                             plate=translate(outline, w / 2, h / 2), raised=raised, stacked=stacked,
+                             thickness=depth if full_depth else None, base_color=base_color, names=names)
+
+    # Tile coordinates: the face centre is at (w/2, h/2, depth), facing +z.
+    right, up, out = (np.array(v, dtype=float) for v in FACES[face])
+    centre = np.array(_extents(shape, size)) / 2 + out * depth / 2
+    turn = np.eye(4)
+    turn[:3, :3] = np.column_stack([right, up, out])
+    turn[:3, 3] = centre - right * w / 2 - up * h / 2 - out * depth
+    for p in model:
+        p.mesh.apply_transform(turn)
+    low = model.bounds[0]
+    for p in model:
+        p.mesh.apply_translation(-low)
+    return model
+
+
+def _extents(shape: str, size: tuple[float, float, float]) -> tuple[float, float, float]:
+    x, y, z = size
+    return (x, x, z) if shape == "cylinder" else (x, y, z)

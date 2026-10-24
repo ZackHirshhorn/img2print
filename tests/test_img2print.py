@@ -149,6 +149,69 @@ def test_multi_color_tile(raised):
     assert model["white"].mesh.volume == pytest.approx(expected_white, rel=1e-3)
 
 
+def assert_colour_by_layer(meshes, base, layer, floor=0.0):
+    """Colour by layer, printable with one nozzle by swapping filament between layers: the
+    background from the bed (floor) to base, then each colour in its own band, layer mm thick,
+    right above the last. So no two parts share a layer and every colour ends at its own height."""
+    bands = [tuple(m.bounds[:, 2]) for m in meshes]
+    assert bands[0] == pytest.approx((floor, base))
+    for i, band in enumerate(bands[1:]):
+        assert band == pytest.approx((base + i * layer, base + (i + 1) * layer))
+    tops = [round(hi, 6) for _, hi in bands]
+    assert len(set(tops)) == len(tops)
+    assert all(m.is_watertight for m in meshes)
+
+
+def top_view(mesh):
+    """What a part covers seen from above: its upward-facing triangles, flattened."""
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    up = mesh.face_normals[:, 2] > 0.5
+    return unary_union([Polygon(t[:, :2]) for t in mesh.triangles[up]]).buffer(1e-6)
+
+
+def test_colour_by_layer_tile():
+    layers = img2print.trace_colors(make_color_image(), width=100, colors=4)
+    model = img2print.multi_color_tile(layers, base=1.0, layer=0.5, corner_radius=0, stacked=True)
+    assert [p.name for p in model] == ["white", "black", "red", "blue"]
+    assert_colour_by_layer([p.mesh for p in model], base=1.0, layer=0.5)
+    assert model.filament_changes == [(1.0, "black"), (1.5, "red"), (2.0, "blue")]
+    # From above, each colour shows exactly where it is in the image: every later band covers it
+    # nowhere, and its own band is under every later colour, holding it up.
+    parts = list(model)
+    for i, art in enumerate(layers[1:], 1):
+        here = art.geometry.representative_point()
+        assert top_view(parts[i].mesh).contains(here)
+        assert not any(top_view(p.mesh).contains(here) for p in parts[i + 1:])
+        below = parts[i].mesh.volume / 0.5   # the band's area: this colour and all later ones
+        assert below == pytest.approx(sum(a.area for a in layers[i:]), rel=0.02)
+
+
+@pytest.mark.parametrize("colors, raised", [(None, False), (2, True), (4, False), (4, True)])
+def test_colour_by_layer_settings(colors, raised):
+    """stacking="layers" always means colour by layer, whatever raised says, in both colour modes."""
+    from img2print.pipeline import build
+    from img2print.settings import Settings
+    image = make_color_image() if colors == 4 else make_image()
+    model, _ = build(image, Settings(width=100, colors=colors, stacking="layers", base=3, layer=0.6,
+                                     corner_radius=8, padding=3, raised=raised))
+    assert_colour_by_layer([p.mesh for p in model], base=3, layer=0.6)
+    names = [p.name for p in model]
+    assert model.filament_changes == [(pytest.approx(3 + i * 0.6), n) for i, n in enumerate(names[1:])]
+
+
+def test_colour_by_layer_on_a_shape():
+    """On a shape the colours stand out of the face, counted from the opposite face on the bed."""
+    layers = img2print.trace_colors(make_color_image(), width=30, colors=4)
+    model = img2print.shape_with_design(layers, size=(40, 30, 20), face="top", layer=0.5, stacked=True)
+    assert_colour_by_layer([p.mesh for p in model], base=20, layer=0.5)
+    assert [z for z, _ in model.filament_changes] == pytest.approx([20, 20.5, 21])
+    front = img2print.shape_with_design(layers, size=(40, 30, 20), face="front", layer=0.5, stacked=True)
+    np.testing.assert_allclose(front.bounds, [[0, 0, 0], [40, 31.5, 20]], atol=1e-6)
+    with pytest.raises(ValueError, match="colour by layer"):
+        img2print.multi_color_tile(layers, stacked=True, thickness=2)
+
+
 def test_full_depth_tiles():
     art = img2print.trace_image(make_image(), width=100)
     model = img2print.two_color_tile(art, corner_radius=0, thickness=3)
@@ -380,3 +443,99 @@ def test_pdf_input(tmp_path):
     src.write_bytes(data)
     with pytest.raises(ValueError):
         img2print.trace_image(src, page=3)
+
+
+# --- a design on a face of a shape ---
+
+def corner_image():
+    """100x100 px white image with a black square in its top-left quarter."""
+    a = np.full((100, 100), 255, np.uint8)
+    a[10:40, 10:40] = 0
+    return Image.fromarray(a)
+
+
+# Unit vectors of the image's right and up on each face of a box, seen from outside.
+@pytest.mark.parametrize("face, right, up, out", [
+    ("top", (1, 0, 0), (0, 1, 0), (0, 0, 1)),
+    ("bottom", (1, 0, 0), (0, -1, 0), (0, 0, -1)),
+    ("front", (1, 0, 0), (0, 0, 1), (0, -1, 0)),
+    ("back", (-1, 0, 0), (0, 0, 1), (0, 1, 0)),
+    ("right", (0, 1, 0), (0, 0, 1), (1, 0, 0)),
+    ("left", (0, -1, 0), (0, 0, 1), (-1, 0, 0)),
+])
+def test_shape_faces_read_from_outside(face, right, up, out):
+    from img2print.pipeline import build
+    from img2print.settings import Settings
+    model, _ = build(corner_image(), Settings(recipe="shape", face=face, shape_width=40, shape_depth=30,
+                                              shape_height=20, stacking="top", base_color="white"))
+    assert [p.name for p in model] == ["white", "black"]
+    assert all(p.mesh.is_watertight for p in model)
+    np.testing.assert_allclose(model.bounds, [[0, 0, 0], [40, 30, 20]], atol=1e-6)
+    offset = model["black"].mesh.centroid - np.array([20, 15, 10])
+    assert offset @ right < 0 and offset @ up > 0           # top-left of the image
+    ink = model["black"].mesh.bounds
+    side = np.abs(out) @ ink[1 if sum(out) > 0 else 0]       # the ink is flush with the face
+    assert side == pytest.approx(np.abs(out) @ ([40, 30, 20] if sum(out) > 0 else [0, 0, 0]))
+
+
+def test_shape_inlaid_and_raised():
+    layers = img2print.trace_colors(make_color_image(), width=30, colors=4)
+    inlaid = img2print.shape_with_design(layers, size=(40, 30, 20), face="front", layer=1.0)
+    assert [p.name for p in inlaid] == ["white", "black", "red", "blue"]
+    assert sum(p.mesh.volume for p in inlaid) == pytest.approx(40 * 30 * 20, rel=1e-3)
+    assert inlaid["black"].mesh.volume == pytest.approx(9 * 9 * 1.0, rel=0.02)   # 30 x 30 px at 0.3 mm
+    raised = img2print.shape_with_design(layers, size=(40, 30, 20), face="front", layer=1.0, raised=True)
+    assert raised["white"].mesh.volume == pytest.approx(40 * 30 * 20, rel=1e-3)
+    np.testing.assert_allclose(raised.bounds, [[0, 0, 0], [40, 31, 20]], atol=1e-6)
+    # every colour right through the box, 30 mm from front to back
+    through = img2print.shape_with_design(layers, size=(40, 30, 20), face="front", full_depth=True)
+    assert through["black"].mesh.volume == pytest.approx(9 * 9 * 30, rel=0.02)
+
+
+def test_shape_cylinder_and_plain_body():
+    from img2print.pipeline import build
+    from img2print.settings import Settings
+    model, layers = build(make_image(), Settings(recipe="shape", shape="cylinder", shape_width=50,
+                                                 shape_height=10, stacking="top", base_color="grey"))
+    assert [p.name for p in model] == ["base", "white", "black"]
+    assert all(p.mesh.is_watertight for p in model)
+    np.testing.assert_allclose(model.bounds, [[0, 0, 0], [50, 50, 10]], atol=1e-3)
+    assert sum(p.mesh.volume for p in model) == pytest.approx(np.pi * 25 ** 2 * 10, rel=1e-3)
+    assert layers[0].width == pytest.approx(50 / 2 ** 0.5)   # fits the square inside the top
+    with pytest.raises(ValueError, match="curved"):
+        Settings(recipe="shape", shape="cylinder", face="front")
+
+
+def test_shape_design_size():
+    from img2print.pipeline import trace_layers
+    from img2print.settings import Settings
+    # By default the 2:1 design fits the 40 x 20 mm front face inside the padding ...
+    fit = trace_layers(make_image(), Settings(recipe="shape", shape_height=20, face="front", padding=3))
+    assert (fit[0].width, fit[0].height) == pytest.approx((28, 14))
+    fit = trace_layers(make_image(), Settings(recipe="shape", shape_width=60, shape_height=40, face="front"))
+    assert (fit[0].width, fit[0].height) == pytest.approx((60, 30))
+    # ... or takes the size given, clipped to the face
+    sized = trace_layers(make_image(), Settings(recipe="shape", width=25, padding=3))
+    assert sized[0].width == pytest.approx(25)
+    with pytest.raises(ValueError, match="deep"):
+        Settings(recipe="shape", face="front", shape_depth=0.5, layer=0.8, stacking="top")
+    with pytest.raises(ValueError, match="face"):
+        Settings(recipe="shape", face="inside")
+    with pytest.raises(ValueError, match="padding"):
+        Settings(recipe="shape", padding=20)
+
+
+def test_cli_shape(tmp_path, capsys):
+    src = tmp_path / "design.png"
+    make_image().save(src)
+    main([str(src), "--shape", "box", "--shape-size", "40x30x20", "--face", "front", "--colors", "2",
+          "--base-color", "white"])
+    out = capsys.readouterr().out
+    assert "40.0 x 20.0 mm" in out          # the design fits the face
+    mesh = trimesh.load(tmp_path / "design_white.stl")
+    np.testing.assert_allclose(mesh.bounds, [[0, 0, 0], [40, 30, 20]], atol=1e-6)
+    main([str(src), "--shape", "cylinder", "--shape-size", "30x5", "--base-color", "white"])
+    assert trimesh.load(tmp_path / "design_white.stl").bounds[1] == pytest.approx([30, 30, 5])
+    with pytest.raises(SystemExit):
+        main([str(src), "--shape", "cylinder", "--shape-size", "30x30x5"])
+    assert "DIAMETERxHEIGHT" in capsys.readouterr().err

@@ -3,7 +3,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { DEFAULT_SETTINGS, type BuiltModel, type Settings, type Upload } from "./api/client";
 
-export type SizeKey = "width" | "height" | "longest";
+/** "fit": no size given, so a shape's design fits its face. */
+export type SizeKey = "width" | "height" | "longest" | "fit";
 
 interface State {
   settings: Settings;
@@ -39,8 +40,10 @@ export const useStore = create<State>()(
       explode: 0,
 
       setSettings: (patch) => set({ settings: { ...get().settings, ...patch } }),
-      setSize: (key, mm) =>
-        set({ settings: { ...get().settings, width: null, height: null, longest: null, [key]: mm } }),
+      setSize: (key, mm) => {
+        const size = { width: null, height: null, longest: null };
+        set({ settings: { ...get().settings, ...size, ...(key === "fit" ? {} : { [key]: mm }) } });
+      },
       setMaterial: (material) => set({ material }),
       setAutoBuild: (autoBuild) => set({ autoBuild }),
       setUpload(upload, file) {
@@ -88,5 +91,5 @@ export function sizeOf(settings: Settings): [SizeKey, number] {
     const v = settings[key];
     if (v != null) return [key, v];
   }
-  return ["width", 100];
+  return settings.recipe === "shape" ? ["fit", 100] : ["width", 100];
 }

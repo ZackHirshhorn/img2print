@@ -58,11 +58,18 @@ class PartStats(BaseModel):
     stl_url: str
 
 
+class FilamentChange(BaseModel):
+    height: float = Field(description="mm from the bed, where this part's filament starts")
+    name: str
+    color: str | None
+
+
 class BuiltModel(BaseModel):
     id: str
     size: tuple[float, float, float] = Field(description="x, y, z in mm")
     material: str
     parts: list[PartStats]
+    filament_changes: list[FilamentChange] = Field(description="colour by layer only, lowest first")
     trace: Trace
     glb_url: str
     threemf_url: str

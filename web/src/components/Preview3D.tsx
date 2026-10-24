@@ -16,7 +16,7 @@ export function Preview3D({ model }: { model: BuiltModel | null }) {
   if (!model) {
     return <div className="preview-empty muted">Build the model to see it in 3D.</div>;
   }
-  const span = Math.max(model.size[0], model.size[1], 20);
+  const span = Math.max(...model.size, 20);
 
   return (
     <div className="preview3d">

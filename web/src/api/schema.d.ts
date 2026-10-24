@@ -194,6 +194,11 @@ export interface components {
             material: string;
             /** Parts */
             parts: components["schemas"]["PartStats"][];
+            /**
+             * Filament Changes
+             * @description colour by layer only, lowest first
+             */
+            filament_changes: components["schemas"]["FilamentChange"][];
             trace: components["schemas"]["Trace"];
             /** Glb Url */
             glb_url: string;
@@ -201,6 +206,18 @@ export interface components {
             threemf_url: string;
             /** Zip Url */
             zip_url: string;
+        };
+        /** FilamentChange */
+        FilamentChange: {
+            /**
+             * Height
+             * @description mm from the bed, where this part's filament starts
+             */
+            height: number;
+            /** Name */
+            name: string;
+            /** Color */
+            color: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -271,6 +288,9 @@ export interface components {
          * @description Every option of a print job. Give at most one of width, height or longest (mm):
          *     the size of the finished plate, padding included.
          *
+         *     The shape recipe puts the design on one face of a box or cylinder instead. Its size
+         *     options are then the design's size; with none, the design fits the face inside padding.
+         *
          *     Colour mode is used when colors or palette is set; otherwise the image becomes a
          *     2-colour (black / white) plate. page counts from 1, as on the command line.
          */
@@ -326,6 +346,31 @@ export interface components {
              * @default false
              */
             raised: boolean;
+            /**
+             * Shape
+             * @default box
+             */
+            shape: string;
+            /**
+             * Shape Width
+             * @default 40
+             */
+            shape_width: number;
+            /**
+             * Shape Depth
+             * @default 40
+             */
+            shape_depth: number;
+            /**
+             * Shape Height
+             * @default 40
+             */
+            shape_height: number;
+            /**
+             * Face
+             * @default top
+             */
+            face: string;
             /**
              * Threshold
              * @default 0.5

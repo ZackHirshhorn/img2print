@@ -8,6 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from .pipeline import build_model, trace_layers
+from .recipes import FACES, SHAPES
 from .settings import Settings
 
 SIZES = ("width", "height", "longest")
@@ -30,7 +31,8 @@ def main(argv: list[str] | None = None) -> None:
     size.add_argument("--longest", type=float, help="length of the longer side in mm, instead of --width")
     ap.add_argument("--base", type=float, help="white base plate thickness, mm (default 1.2)")
     ap.add_argument("--layer", type=float,
-                    help="thickness of the 2-colour layer / black relief height, mm (default 0.8)")
+                    help="thickness of the 2-colour layer / black relief height; by default (colour by "
+                         "layer) the height of each colour's band, mm (default 0.8)")
     ap.add_argument("--thickness", type=float,
                     help="instead of --base and --layer: every colour runs this full plate thickness, mm")
     ap.add_argument("--base-color",
@@ -39,6 +41,13 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--padding", type=float,
                     help="blank border around the design, mm, inside the size given (default 0)")
     ap.add_argument("--raised", action="store_true", help="black stands above a plain white plate")
+    ap.add_argument("--shape", choices=SHAPES,
+                    help="put the design on one face of a solid box or cylinder instead of a plate; "
+                         "the size options then size the design, which by default fits the face")
+    ap.add_argument("--shape-size",
+                    help="size of the shape, mm: WxDxH for a box, DIAMETERxH for a cylinder (default 40x40x40)")
+    ap.add_argument("--face", choices=FACES,
+                    help="which face of the shape carries the design (default top; a cylinder: top or bottom)")
     ap.add_argument("--threshold", type=float,
                     help="darkness threshold 0..1, 2-colour mode only (default 0.5)")
     ap.add_argument("--invert", action="store_true",
@@ -67,6 +76,9 @@ def main(argv: list[str] | None = None) -> None:
     save_to = args.pop("save_settings", None)
     if "palette" in args:
         args["palette"] = [c.strip() for c in args["palette"].split(",") if c.strip()]
+    shape_size = args.pop("shape_size", None)
+    if "shape" in args or "face" in args or shape_size:
+        args["recipe"] = "shape"
     try:
         settings = Settings.load(args.pop("settings")) if "settings" in args else Settings()
         if any(k in args for k in SIZES):
@@ -78,6 +90,8 @@ def main(argv: list[str] | None = None) -> None:
         elif any(k in args for k in ("base", "layer", "raised")) and settings.stacking == "full":
             args["stacking"] = "layers"
         settings = replace(settings, **args)
+        if shape_size:
+            settings = replace(settings, **_shape_size(shape_size, settings.shape))
 
         layers = trace_layers(img_path, settings)
         frame = layers[0].frame.area
@@ -100,7 +114,23 @@ def main(argv: list[str] | None = None) -> None:
     print(model.summary())
     grams = sum(s["grams"] for s in model.stats())
     print(f"Filament (solid, PLA): about {grams:.1f} g")
+    for z, name in model.filament_changes:
+        print(f"Colour by layer: pause at {z:g} mm and load {name}")
     print("Wrote " + ", ".join(str(p) for p in written) + (f", {save_to}" if save_to else ""))
+
+
+def _shape_size(text: str, shape: str) -> dict:
+    """'40x30x20' (box) or '50x20' (cylinder: diameter x height) as Settings fields."""
+    try:
+        sides = [float(v) for v in text.lower().split("x")]
+    except ValueError:
+        sides = []
+    if shape == "cylinder" and len(sides) == 2:
+        return dict(shape_width=sides[0], shape_height=sides[1])
+    if shape == "box" and len(sides) == 3:
+        return dict(shape_width=sides[0], shape_depth=sides[1], shape_height=sides[2])
+    expected = "DIAMETERxHEIGHT, e.g. 50x20" if shape == "cylinder" else "WxDxH, e.g. 40x30x20"
+    raise ValueError(f"--shape-size {text!r}: a {shape} needs {expected}")
 
 
 if __name__ == "__main__":

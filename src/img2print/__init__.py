@@ -11,6 +11,11 @@ Step by step:
     art = img2print.trace_image("logo.png", width=100, threshold=0.5)
     model = img2print.two_color_tile(art, raised=True, corner_radius=5)
 
+A design on one face of a box or cylinder:
+
+    layers = img2print.trace_colors("logo.png", width=30, colors=3)
+    model = img2print.shape_with_design(layers, shape="box", size=(40, 40, 20), face="front")
+
 More colours:
 
     model = img2print.image_to_multi_color_tile("logo.png", width=100, colors=4)
@@ -25,7 +30,8 @@ Vector input and other sizes:
 from .geometry import extrude, rounded_rect, union
 from .image import group_colors, load_darkness, load_rgb, open_image, quantize
 from .model import Model, Part
-from .recipes import image_to_multi_color_tile, image_to_tile, multi_color_tile, two_color_tile
+from .recipes import (face_size, image_to_multi_color_tile, image_to_tile, multi_color_tile,
+                      shape_with_design, two_color_tile)
 from .trace import Artwork, output_scale, trace, trace_colors, trace_image
 from .vector import VectorArt, load_vector
 
@@ -36,6 +42,7 @@ __all__ = [
     "Model",
     "Part",
     "extrude",
+    "face_size",
     "group_colors",
     "image_to_multi_color_tile",
     "image_to_tile",
@@ -47,6 +54,7 @@ __all__ = [
     "output_scale",
     "quantize",
     "rounded_rect",
+    "shape_with_design",
     "trace",
     "trace_colors",
     "trace_image",

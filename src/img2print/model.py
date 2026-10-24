@@ -31,6 +31,8 @@ class Model:
     """A set of parts that print together, one filament per part."""
 
     parts: list[Part] = field(default_factory=list)
+    # Colour by layer: (height in mm, part name) where the print pauses to load that part's filament.
+    filament_changes: list[tuple[float, str]] = field(default_factory=list)
 
     def __getitem__(self, name: str) -> Part:
         for p in self.parts:

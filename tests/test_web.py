@@ -15,7 +15,7 @@ from img2print.settings import Settings  # noqa: E402
 from img2print.web import api, cache  # noqa: E402
 from img2print.web.server import create_app  # noqa: E402
 
-from test_img2print import SVG, make_color_image, make_image, make_pdf  # noqa: E402
+from test_img2print import SVG, assert_colour_by_layer, make_color_image, make_image, make_pdf  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -184,6 +184,41 @@ def test_build_and_download(client, image, settings, names):
         assert sorted(z.namelist()) == sorted(["logo.3mf"] + [f"logo_{n}.stl" for n in names])
 
     assert client.get(m["glb_url"].replace("preview.glb", "parts/nope.stl")).status_code == 404
+
+
+def test_build_shape(client):
+    up = upload(client, png(make_color_image()))
+    settings = {"recipe": "shape", "shape": "box", "shape_width": 40, "shape_depth": 30, "shape_height": 20,
+                "face": "front", "colors": 4, "width": None, "stacking": "top", "base_color": "white"}
+    r = client.post("/api/models", json={"upload_id": up["id"], "settings": settings})
+    assert r.status_code == 200, r.text
+    m = r.json()
+    assert m["size"] == pytest.approx([40, 30, 20])
+    assert [p["name"] for p in m["parts"]] == ["white", "black", "red", "blue"]
+    assert all(p["watertight"] for p in m["parts"])
+    assert (m["trace"]["width"], m["trace"]["height"]) == pytest.approx((40, 20))   # fits the face
+    r = client.post("/api/trace", json={"upload_id": up["id"], "settings": dict(settings, shape="cylinder")})
+    assert r.status_code == 422 and "curved" in error(r)
+
+
+@pytest.mark.parametrize("image, settings, floor_to_base", [
+    (make_image, {"colors": 2}, 3),
+    (make_color_image, {"colors": 4}, 3),
+    (make_color_image, {"colors": 4, "recipe": "shape", "shape_height": 20, "face": "top", "width": None}, 20),
+])
+def test_by_layers_is_colour_by_layer(client, image, settings, floor_to_base):
+    """Whatever else it sends, "By layers" from the client builds colour by layer: every colour in
+    its own band above the last, so one nozzle prints it by swapping filament at the given heights."""
+    up = upload(client, png(image()))
+    settings = {"width": 100, "stacking": "layers", "raised": False, "base": 3, "layer": 0.6,
+                "corner_radius": 8, "padding": 3, **settings}
+    r = client.post("/api/models", json={"upload_id": up["id"], "settings": settings})
+    assert r.status_code == 200, r.text
+    m = r.json()
+    meshes = [trimesh.load(io.BytesIO(get_file(client, p["stl_url"])), file_type="stl") for p in m["parts"]]
+    assert_colour_by_layer(meshes, base=floor_to_base, layer=0.6)
+    assert [(c["height"], c["name"], c["color"]) for c in m["filament_changes"]] == [
+        (pytest.approx(floor_to_base + i * 0.6), p["name"], p["color"]) for i, p in enumerate(m["parts"][1:])]
 
 
 def test_build_unknown_material(client):

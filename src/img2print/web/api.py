@@ -29,7 +29,8 @@ from ..settings import Settings
 from ..trace import Artwork
 from ..vector import load_vector, vector_kind
 from .cache import Cache
-from .schemas import BuildRequest, BuiltModel, Info, Layer, PartStats, Swatch, Trace, TraceRequest, Upload
+from .schemas import (BuildRequest, BuiltModel, FilamentChange, Info, Layer, PartStats, Swatch, Trace,
+                      TraceRequest, Upload)
 
 MAX_UPLOAD_MB = 25
 MAX_PIXELS = 40_000_000       # larger raster images are refused (decompression bombs)
@@ -125,6 +126,8 @@ async def build(req: BuildRequest) -> BuiltModel:
         size=(x1 - x0, y1 - y0, z1 - z0),
         material=req.material,
         parts=[PartStats(**s, stl_url=f"{base}/parts/{quote(s['name'])}.stl") for s in model.stats(req.material)],
+        filament_changes=[FilamentChange(height=z, name=name, color=model[name].color)
+                          for z, name in model.filament_changes],
         trace=_trace_body(layers, req.settings),
         glb_url=f"{base}/preview.glb",
         threemf_url=f"{base}/model.3mf",
