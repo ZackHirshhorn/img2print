@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api/client";
 import { Dropzone } from "./components/Dropzone";
+import { Footer } from "./components/Footer";
 import { Preview3D } from "./components/Preview3D";
 import { Results } from "./components/Results";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -70,6 +71,7 @@ export function App() {
           <Results info={info.data} model={model} building={building} error={error} stale={stale} onBuild={build} />
         </aside>
       </main>
+      <Footer version={info.data?.version} />
     </div>
   );
 }
