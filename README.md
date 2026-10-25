@@ -34,6 +34,8 @@ img2print logo.png --colors 4              # colour artwork: find 4 colours (bac
 img2print logo.png --palette white,black,#d42a1f   # or name the filaments yourself
 img2print logo.png --shape box --shape-size 40x30x20 --face front   # the design on a box's front face
 img2print logo.png --shape cylinder --shape-size 50x10 --raised     # standing out of a cylinder's top
+img2print logo.png --padding 12 --text "פיצה טובה" --font "Secular One"   # text in its own colour
+img2print logo.png --text "Napoli" --text-style engrave --text-color surface # text cut into the plate
 img2print --help
 ```
 
@@ -93,6 +95,30 @@ can only be one colour:
 - By default the design fits the face, `--padding` in from its edges (on a cylinder: the
   largest square inside the circle). `--width`, `--height` or `--longest` size it yourself; it is
   centred on the face and clipped to it.
+
+### Text
+
+- Text goes on the design in any font. Hebrew (with niqqud), mixed Hebrew / English lines and
+  numbers come out in reading order; text is shaped with HarfBuzz.
+- Three styles: **paint** (flush, set apart only by its colour), **emboss** (stands `depth` mm out)
+  and **engrave** (cut `depth` mm in). Embossed or engraved text without a colour keeps the colour
+  of the surface; engraved text with a colour shows it at the bottom of the letters.
+- Text in a colour the design already has prints in that filament; a new colour adds a part.
+  By layers, the text's colour gets the top band, so every layer still holds one filament.
+- Fonts: Heebo is bundled. Any Google Fonts family works by name and is downloaded on first use
+  (`IMG2PRINT_GOOGLE_FONTS=0` turns that off). Your own `.ttf` / `.otf` files go in the font folder,
+  `IMG2PRINT_FONT_DIR` (default `%LOCALAPPDATA%\img2print\fonts` or `~/.cache/img2print/fonts`),
+  or are added in the web app.
+- The command line puts one `--text` in the middle. For several texts, their position (`x`, `y`
+  as fractions of the design from its top-left), size, rotation and spacing, use the `"texts"`
+  list in a `--settings` file:
+
+```json
+{"texts": [{"text": "שלום", "font": "Frank Ruhl Libre", "weight": 700, "size": 8,
+            "x": 0.5, "y": 0.85, "style": "emboss", "color": null, "depth": 0.6}]}
+```
+
+In the web app, add texts in the Text section and drag them on the Design view.
 
 ## Python API
 

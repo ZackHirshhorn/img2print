@@ -88,6 +88,14 @@ browser (React SPA) ──JSON + upload──► FastAPI (img2print.web) ──�
 - Checked: `npm run build` (including `tsc --noEmit`) is clean, and a live `img2print-web` serves the SPA, its assets and the full API flow. **Not yet checked in a real browser:** the 3D view, dark mode and the narrow layout.
 - `.gitignore`: already has `web/node_modules/`, `web/.npm-cache/`, `web/openapi.json` and `src/img2print/web/static/`.
 
+### Text on the model (branch `feature/text`)
+- Library: `text.py` (`Text` settings item; HarfBuzz shaping, a compact bidi for Hebrew/English/numbers, nonzero glyph fill) and `fonts.py` (bundled Heebo, your font folder `IMG2PRINT_FONT_DIR`, all of Google Fonts downloaded on first use; `IMG2PRINT_GOOGLE_FONTS=0` is offline).
+- Styles: paint (colour, flush), emboss and engrave (`depth` mm). The pipeline paints text colours into the layers; `multi_color_tile(reliefs=...)` raises or cuts text relative to the surface under it. By layers, text gets the top band.
+- `extrude` drops points a hair apart and falls back to manifold's triangulation when earcut gives an open mesh (seen with letters cut by the plate edge).
+- API: `GET /api/fonts`, `GET /api/fonts/file`, `POST /api/fonts`; `/api/trace` returns `texts[{path, error}]`.
+- Frontend: Text section (editor, font picker with Hebrew filter and previews, add a font file), a Design (2D) tab with drag-to-move and double-click to add, and "start with a blank plate" for text-only signs.
+- Checked in headless Chromium: blank plate, font change, drag, build (watertight), logo with text.
+
 ## Remaining
 
 ### Step 3 (reference): frontend MVP (`web/`, Vite + React 18 + TS)

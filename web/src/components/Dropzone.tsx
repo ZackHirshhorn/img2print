@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useStore } from "../store";
+import { NumberField } from "./fields";
 
 const ACCEPT = "image/*,.svg,.pdf,application/pdf";
 
@@ -66,6 +67,7 @@ export function Dropzone() {
       <input ref={input} type="file" accept={ACCEPT} hidden onChange={(e) => pick(e.target.files)} />
 
       {send.isError && <p className="error">{send.error.message}</p>}
+      {!upload && <BlankPlate onFile={mutate} />}
 
       {upload && (
         <div className="file-info">
@@ -97,6 +99,50 @@ export function Dropzone() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** No artwork, just a plate to put text on: a white image of the plate's proportions. */
+function BlankPlate({ onFile }: { onFile: (file: File) => void }) {
+  const [open, setOpen] = useState(false);
+  const [w, setW] = useState(100);
+  const [h, setH] = useState(40);
+  const setSize = useStore((s) => s.setSize);
+  const setSettings = useStore((s) => s.setSettings);
+  const addText = useStore((s) => s.addText);
+  const texts = useStore((s) => s.settings.texts);
+
+  function start() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1000;
+    canvas.height = Math.max(1, Math.round((1000 * h) / w));
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      setSettings({ recipe: "tile", padding: 0 });
+      setSize("width", w);
+      onFile(new File([blob], "plate.png", { type: "image/png" }));
+      if (texts.length === 0) addText({ text: "טקסט", size: Math.max(2, Math.round(h / 3)) });
+    }, "image/png");
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className="link blank-plate" onClick={() => setOpen(true)}>
+        No artwork? Start with a blank plate for text
+      </button>
+    );
+  }
+  return (
+    <div className="blank-plate-form">
+      <div className="row">
+        <NumberField label="Width" value={w} onChange={setW} step={5} min={5} unit="mm" />
+        <NumberField label="Height" value={h} onChange={setH} step={5} min={5} unit="mm" />
+      </div>
+      <button type="button" onClick={start}>Start</button>
     </div>
   );
 }

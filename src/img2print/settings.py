@@ -10,12 +10,13 @@ The command line, the web app and settings files share this one definition:
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 from os import PathLike
 from pathlib import Path
 
 from .colors import parse_color
 from .recipes import FACES, SHAPES, face_size
+from .text import Text
 from .trace import DEFAULT_WIDTH
 
 # "tile":  a flat plate the size of the design.
@@ -38,6 +39,8 @@ class Settings:
 
     Colour mode is used when colors or palette is set; otherwise the image becomes a
     2-colour (black / white) plate. page counts from 1, as on the command line.
+
+    texts are blocks of text put on the design: painted, embossed or engraved, see text.Text.
     """
 
     recipe: str = "tile"
@@ -72,8 +75,14 @@ class Settings:
     min_area: float = 0.05
     simplify: float = 0.02
     page: int = 1
+    # text on the design
+    texts: list[Text] = field(default_factory=list)
 
     def __post_init__(self):
+        try:
+            self.texts = [t if isinstance(t, Text) else Text(**t) for t in self.texts or []]
+        except TypeError as e:   # unknown or missing keys in a text
+            raise ValueError(f"bad text: {e}") from None
         self.validate()
 
     @property
@@ -119,6 +128,8 @@ class Settings:
             raise ValueError(f"page counts from 1, got {self.page}")
         for c in (self.palette or []) + ([self.background] if self.background else []) + [self.base_color]:
             parse_color(c)
+        for t in self.texts:
+            t.validate()
 
     @property
     def shape_size(self) -> tuple[float, float, float]:

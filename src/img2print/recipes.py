@@ -5,15 +5,18 @@ from __future__ import annotations
 import numpy as np
 from shapely.affinity import translate
 from shapely.geometry import Point, Polygon, box
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
 from .colors import parse_color, to_hex, unique_names
-from .geometry import as_polygons, extrude, rounded_rect, union
+from .geometry import as_polygons, difference, extrude, rounded_rect, union
 from .image import ImageSource
 from .model import Model, Part
 from .trace import Artwork, trace_colors, trace_image
 
 SHAPES = ("box", "cylinder")
+# Embossed shapes reach this far down into the surface they stand on, so they fuse with it, mm.
+FUSE = 0.01
 # The design's right, up and outward directions on each face, so it reads correctly from outside.
 FACES = {
     "top": ((1, 0, 0), (0, 1, 0), (0, 0, 1)),
@@ -105,6 +108,7 @@ def multi_color_tile(
     thickness: float | None = None,
     base_color: str | None = None,
     names: list[str] | None = None,
+    reliefs: list[tuple[BaseGeometry, float]] = (),
 ) -> Model:
     """Build a plate with any number of colours, one filament each.
 
@@ -118,6 +122,9 @@ def multi_color_tile(
              in turn gets its own band, layer mm thick, one above the other. A colour's band
              also runs under every later colour, holding it up, so from above each area shows
              its own colour. The model's filament_changes say where to swap filament.
+    reliefs  (shape, height) pairs in the layers' coordinates: each shape stands height mm out
+             of the surface under it, in that surface's colour, or is cut -height mm into it
+             when height is negative. Used for embossed and engraved text.
     The other options are as in two_color_tile().
     """
     if stacked and (thickness is not None or base_color is not None):
@@ -145,7 +152,7 @@ def multi_color_tile(
 
     colours = [(art, name, region) for art, name, region in zip(layers[1:], names[1:], regions)
                if not region.is_empty]
-    if not colours:
+    if not colours and not reliefs:   # a plain plate is fine when text is cut into it
         raise ValueError("no coloured regions inside the plate; try more colours or a different background")
     parts, changes = [], []
     for i, (art, name, region) in enumerate(colours):
@@ -157,9 +164,40 @@ def multi_color_tile(
             mesh = extrude(region, layer, z0=base) if thickness is None else extrude(region, thickness)
         parts.append(Part(name, mesh, art.color))
 
-    return Model(_background(plate, taken, names[0], background.color, base=base, layer=layer,
-                             raised=raised or stacked, thickness=thickness, base_color=base_color) + parts,
-                 changes)
+    model = Model(_background(plate, taken, names[0], background.color, base=base, layer=layer,
+                              raised=raised or stacked, thickness=thickness, base_color=base_color) + parts,
+                  changes)
+    if reliefs:
+        # The top surface: what shows from above, how high it is, and which part it belongs to.
+        bg_top = thickness if thickness is not None else base if raised or stacked else base + layer
+        bg_name = names[0] if any(p.name == names[0] for p in model) else "base"
+        surface = [(plate.difference(taken), bg_top, bg_name)]
+        for i, (_, name, region) in enumerate(colours):
+            top = thickness if thickness is not None else base + (i + 1) * layer if stacked else base + layer
+            surface.append((region, top, name))
+        _relief(model, surface, [(translate(g, offset, offset), h) for g, h in reliefs])
+    return model
+
+
+def _relief(model: Model, surface, reliefs) -> None:
+    """Emboss (height > 0) or engrave (height < 0) shapes into the surface, piece by piece."""
+    added: dict[str, list] = {}
+    cuts = []
+    for geom, height in reliefs:
+        for region, top, name in surface:
+            polys = [p for p in as_polygons(geom.intersection(region).buffer(0)) if p.area > 1e-4]
+            if not polys:
+                continue
+            piece = unary_union(polys)
+            if height > 0:
+                added.setdefault(name, []).append(extrude(piece, height + FUSE, z0=top - FUSE))
+            else:
+                cuts.append(extrude(piece, 1 - height, z0=top + height))   # open above the surface
+    for p in model:
+        if p.name in added:
+            p.mesh = union(p.mesh, *added[p.name])
+        if cuts:
+            p.mesh = difference(p.mesh, *cuts)
 
 
 def _plate(plate, artwork, corner_radius, padding) -> tuple[Polygon, float]:
@@ -233,6 +271,7 @@ def shape_with_design(
     full_depth: bool = False,
     base_color: str | None = None,
     names: list[str] | None = None,
+    reliefs: list[tuple[BaseGeometry, float]] = (),
 ) -> Model:
     """A solid box or cylinder with the design on one of its faces.
 
@@ -247,7 +286,7 @@ def shape_with_design(
     full_depth  every colour runs right through the shape, to the opposite face.
     base_color  print the body as its own part in this colour, with the whole face (background
                 included) in the layer. Default: the body is the background colour.
-    layers, names  as in multi_color_tile().
+    layers, names, reliefs  as in multi_color_tile(); reliefs stand out of or cut into the face.
 
     The shape is built as a tile whose plate is the face, then turned onto that face.
     """
@@ -263,7 +302,8 @@ def shape_with_design(
         outline = Point(0, 0).buffer(face_w / 2, quad_segs=64)
     model = multi_color_tile(layers, base=depth if raised else depth - layer, layer=layer,
                              plate=translate(outline, w / 2, h / 2), raised=raised, stacked=stacked,
-                             thickness=depth if full_depth else None, base_color=base_color, names=names)
+                             thickness=depth if full_depth else None, base_color=base_color, names=names,
+                             reliefs=reliefs)
 
     # Tile coordinates: the face centre is at (w/2, h/2, depth), facing +z.
     right, up, out = (np.array(v, dtype=float) for v in FACES[face])

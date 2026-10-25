@@ -18,8 +18,10 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from PIL import Image
+from shapely.geometry.base import BaseGeometry
 
 from .. import __version__
+from .. import fonts
 from ..colors import parse_color, to_hex, unique_names
 from ..geometry import as_polygons
 from ..image import group_colors, load_rgb, open_image
@@ -29,8 +31,8 @@ from ..settings import Settings
 from ..trace import Artwork
 from ..vector import load_vector, vector_kind
 from .cache import Cache
-from .schemas import (BuildRequest, BuiltModel, FilamentChange, Info, Layer, PartStats, Swatch, Trace,
-                      TraceRequest, Upload)
+from .schemas import (BuildRequest, BuiltModel, FilamentChange, Font, Info, Layer, PartStats, Swatch, TextShape,
+                      Trace, TraceRequest, Upload)
 
 MAX_UPLOAD_MB = 25
 MAX_PIXELS = 40_000_000       # larger raster images are refused (decompression bombs)
@@ -38,8 +40,10 @@ MAX_SIDE = 2000               # raster uploads are shrunk to this longest side, 
 MAX_BUILDS = 2                # builds running at once
 BUILD_TIMEOUT = 120.0         # seconds
 
-# Options that only change the plate, not the tracing: builds that differ only in these reuse the trace.
-PLATE_OPTIONS = {"stacking", "base", "layer", "thickness", "base_color", "corner_radius", "raised"}
+# Options that only change the plate or what goes on it, not the tracing: builds that differ only
+# in these reuse the trace.
+PLATE_OPTIONS = {"stacking", "base", "layer", "thickness", "base_color", "corner_radius", "raised", "texts"}
+MAX_FONT_MB = 20
 
 Image.MAX_IMAGE_PIXELS = MAX_PIXELS
 
@@ -85,6 +89,31 @@ def health() -> dict:
     return {"ok": True}
 
 
+@router.get("/fonts", response_model=list[Font])
+async def list_fonts() -> list[Font]:
+    """Every font that text can use: bundled, your own, then all of Google Fonts."""
+    families = await run_in_threadpool(fonts.list_fonts)
+    return [Font(**f.to_dict()) for f in families]
+
+
+@router.get("/fonts/file")
+async def font_file(family: str, weight: int = 400, italic: bool = False) -> Response:
+    """The font file itself, for showing it in the browser. Google fonts are downloaded on first use."""
+    path, _ = await _run(fonts.font_file, family, weight, italic)
+    return Response(path.read_bytes(), media_type="font/otf" if path.suffix == ".otf" else "font/ttf",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+@router.post("/fonts", response_model=Font)
+async def add_font(file: UploadFile = File(...)) -> Font:
+    """Add your own font file (TTF, OTF, WOFF, WOFF2); it then appears in the list."""
+    data = await file.read(MAX_FONT_MB * 2**20 + 1)
+    if len(data) > MAX_FONT_MB * 2**20:
+        raise HTTPException(413, f"font file is larger than {MAX_FONT_MB} MB")
+    family = await _run(fonts.add_font, data, file.filename or "font")
+    return Font(**family.to_dict())
+
+
 @router.post("/uploads", response_model=Upload)
 async def upload(file: UploadFile = File(...)) -> Upload:
     data = await file.read(MAX_UPLOAD_MB * 2**20 + 1)
@@ -104,7 +133,9 @@ async def upload(file: UploadFile = File(...)) -> Upload:
 async def trace(req: TraceRequest) -> Trace:
     source = _source(req.upload_id)
     layers = await _run(_layers, req.upload_id, source, req.settings)
-    return _trace_body(layers, req.settings)
+    body = _trace_body(layers, req.settings)
+    body.texts = await run_in_threadpool(_text_shapes, req.settings, body.width, body.height)
+    return body
 
 
 @router.post("/models", response_model=BuiltModel)
@@ -272,10 +303,20 @@ def _trace_body(layers: list[Artwork], settings: Settings) -> Trace:
         for n, a in zip(names, layers)])
 
 
-def svg_path(art: Artwork, height: float) -> str:
+def _text_shapes(settings: Settings, width: float, height: float) -> list[TextShape]:
+    out = []
+    for text in settings.texts:
+        try:
+            out.append(TextShape(path=svg_path(text.shape(width, height), height)))
+        except (ValueError, OSError) as e:
+            out.append(TextShape(path="", error=str(e)))
+    return out
+
+
+def svg_path(art: Artwork | BaseGeometry, height: float) -> str:
     """Shapely geometry in mm (y up) as SVG path data (y down); fill it with fill-rule evenodd."""
     out = []
-    for poly in as_polygons(art.geometry):
+    for poly in as_polygons(getattr(art, "geometry", art)):
         for ring in (poly.exterior, *poly.interiors):
             pts = np.asarray(ring.coords)[:-1]
             if len(pts) < 3:

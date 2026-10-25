@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { DEFAULT_SETTINGS } from "../api/client";
 import { sizeOf, useStore, type SizeKey } from "../store";
 import { NumberField, Section, Segmented } from "./fields";
+import { TextPanel } from "./TextPanel";
 
 const STACKING_HINTS: Record<string, string> = {
   full: "Every colour runs through the whole plaque.",
@@ -69,6 +70,10 @@ export function SettingsPanel() {
 
       <Section title="Colours">
         <ColourOptions />
+      </Section>
+
+      <Section title="Text">
+        <TextPanel />
       </Section>
 
       <Section title="Style">

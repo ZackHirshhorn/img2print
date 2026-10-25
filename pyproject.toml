@@ -21,6 +21,8 @@ dependencies = [
     "lxml",
     "networkx",
     "svgelements",
+    "fonttools",
+    "uharfbuzz",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +38,7 @@ img2print-web = "img2print.web.server:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
+"img2print" = ["fonts/*"]
 "img2print.web" = ["static/**/*"]
 
 [tool.pytest.ini_options]

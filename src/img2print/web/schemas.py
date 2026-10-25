@@ -41,10 +41,16 @@ class Layer(BaseModel):
     path: str = Field(description="SVG path data in mm, y down, even-odd fill")
 
 
+class TextShape(BaseModel):
+    path: str = Field(description="SVG path data in mm, y down, even-odd fill; empty when the text is empty")
+    error: str | None = Field(None, description="why the text could not be drawn, e.g. an unknown font")
+
+
 class Trace(BaseModel):
     width: float = Field(description="mm")
     height: float = Field(description="mm")
     layers: list[Layer] = Field(description="background first")
+    texts: list[TextShape] = Field(default_factory=list, description="one per settings.texts, in the same order")
 
 
 class PartStats(BaseModel):
@@ -74,6 +80,15 @@ class BuiltModel(BaseModel):
     glb_url: str
     threemf_url: str
     zip_url: str
+
+
+class Font(BaseModel):
+    family: str
+    variants: list[str] = Field(description="'400', '700', '400i' (weight, i for italic)")
+    source: Literal["bundled", "local", "google"]
+    category: str
+    subsets: list[str] = Field(description="scripts covered, e.g. hebrew, latin")
+    popularity: int = Field(description="Google's rank, lower is more popular; 0 for other fonts")
 
 
 class Info(BaseModel):

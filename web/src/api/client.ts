@@ -9,6 +9,9 @@ export type BuiltModel = S["BuiltModel"];
 export type PartStats = S["PartStats"];
 export type Info = S["Info"];
 export type Swatch = S["Swatch"];
+export type TextItem = Required<S["Text"]>;
+export type TextShape = S["TextShape"];
+export type Font = S["Font"];
 
 export const DEFAULT_SETTINGS: Settings = {
   recipe: "tile",
@@ -37,6 +40,24 @@ export const DEFAULT_SETTINGS: Settings = {
   min_area: 0.05,
   simplify: 0.02,
   page: 1,
+  texts: [],
+};
+
+export const DEFAULT_TEXT: TextItem = {
+  text: "",
+  font: "Heebo",
+  weight: 700,
+  italic: false,
+  size: 10,
+  x: 0.5,
+  y: 0.5,
+  rotation: 0,
+  align: "center",
+  line_spacing: 1,
+  letter_spacing: 0,
+  style: "paint",
+  color: "black",
+  depth: 0.6,
 };
 
 export class ApiError extends Error {
@@ -89,4 +110,14 @@ export const api = {
     post<Trace>("/api/trace", { upload_id, settings }, signal),
   build: (upload_id: string, settings: Settings, material: string) =>
     post<BuiltModel>("/api/models", { upload_id, settings, material }),
+  fonts: () => request<Font[]>("/api/fonts"),
+  addFont(file: File): Promise<Font> {
+    const form = new FormData();
+    form.append("file", file);
+    return request<Font>("/api/fonts", { method: "POST", body: form });
+  },
 };
+
+export function fontFileUrl(family: string, weight = 400, italic = false): string {
+  return `/api/fonts/file?${new URLSearchParams({ family, weight: String(weight), italic: String(italic) })}`;
+}

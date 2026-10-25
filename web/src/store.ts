@@ -1,10 +1,11 @@
 // App state. Settings and a few preferences survive a reload; uploads and models live on the server.
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { DEFAULT_SETTINGS, type BuiltModel, type Settings, type Upload } from "./api/client";
+import { DEFAULT_SETTINGS, DEFAULT_TEXT, type BuiltModel, type Settings, type TextItem, type Upload } from "./api/client";
 
 /** "fit": no size given, so a shape's design fits its face. */
 export type SizeKey = "width" | "height" | "longest" | "fit";
+export type View = "design" | "3d";
 
 interface State {
   settings: Settings;
@@ -16,6 +17,9 @@ interface State {
   model: BuiltModel | null;
   hidden: string[];
   explode: number;
+  view: View;
+  /** Index into settings.texts of the text being edited. */
+  selectedText: number | null;
 
   setSettings: (patch: Partial<Settings>) => void;
   setSize: (key: SizeKey, mm: number) => void;
@@ -25,6 +29,11 @@ interface State {
   setModel: (model: BuiltModel | null) => void;
   togglePart: (name: string) => void;
   setExplode: (mm: number) => void;
+  setView: (view: View) => void;
+  addText: (patch?: Partial<TextItem>) => void;
+  setText: (index: number, patch: Partial<TextItem>) => void;
+  removeText: (index: number) => void;
+  selectText: (index: number | null) => void;
 }
 
 export const useStore = create<State>()(
@@ -38,6 +47,8 @@ export const useStore = create<State>()(
       model: null,
       hidden: [],
       explode: 0,
+      view: "design",
+      selectedText: null,
 
       setSettings: (patch) => set({ settings: { ...get().settings, ...patch } }),
       setSize: (key, mm) => {
@@ -63,6 +74,31 @@ export const useStore = create<State>()(
         set({ hidden: hidden.includes(name) ? hidden.filter((n) => n !== name) : [...hidden, name] });
       },
       setExplode: (explode) => set({ explode }),
+      setView: (view) => set({ view }),
+      addText(patch = {}) {
+        const s = get().settings;
+        const last = s.texts[s.texts.length - 1];
+        // A new text starts in the font and colour of the last one, a little lower.
+        const text: TextItem = last
+          ? { ...DEFAULT_TEXT, font: last.font, weight: last.weight, style: last.style, color: last.color,
+              depth: last.depth, size: last.size, y: Math.min(last.y + 0.2, 0.9), ...patch }
+          : { ...DEFAULT_TEXT, ...patch };
+        set({ settings: { ...s, texts: [...s.texts, text] }, selectedText: s.texts.length, view: "design" });
+      },
+      setText(index, patch) {
+        const s = get().settings;
+        set({ settings: { ...s, texts: s.texts.map((t, i) => (i === index ? { ...t, ...patch } : t)) } });
+      },
+      removeText(index) {
+        const s = get().settings;
+        const texts = s.texts.filter((_, i) => i !== index);
+        const sel = get().selectedText;
+        set({
+          settings: { ...s, texts },
+          selectedText: sel === null || sel < index ? sel : sel === index ? null : sel - 1,
+        });
+      },
+      selectText: (selectedText) => set({ selectedText }),
     }),
     {
       name: "img2print",
@@ -80,6 +116,7 @@ export const useStore = create<State>()(
         const settings: Settings = { ...DEFAULT_SETTINGS, ...Object.fromEntries(known), raised: false };
         settings.colors ??= DEFAULT_SETTINGS.colors;
         settings.palette = null;
+        settings.texts = (settings.texts ?? []).map((t) => ({ ...DEFAULT_TEXT, ...t }));
         return { ...current, ...s, settings };
       },
     },

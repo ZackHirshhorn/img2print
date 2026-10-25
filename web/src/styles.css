@@ -112,7 +112,7 @@ h1, h3 { margin: 0; }
 .row > * { flex: 1; }
 .row .field { margin: 0; }
 
-input[type="number"], input[type="text"], select {
+input[type="number"], input[type="text"], input[type="search"], select, textarea {
   font: inherit;
   color: var(--text);
   background: var(--input);
@@ -182,6 +182,81 @@ button:disabled { opacity: 0.5; cursor: default; }
   flex: none;
 }
 
+.link {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  color: var(--accent);
+  text-decoration: underline;
+}
+.grow { flex: 1; }
+textarea { height: auto; width: 100%; resize: vertical; line-height: 1.4; }
+
+/* --- text --- */
+
+.text-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.text-list li { display: flex; align-items: center; border-radius: 6px; }
+.text-list li.on { background: var(--accent-soft); }
+.text-pick {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  border: 0;
+  background: none;
+  padding: 5px 6px;
+}
+.text-pick span[dir] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.text-editor {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.text-editor textarea { margin-bottom: 8px; font-size: 16px; }
+.text-editor input[type="color"] { flex: 0 0 40px; height: 32px; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--input); }
+.text-more { margin-top: 4px; }
+.text-more summary { cursor: pointer; color: var(--muted); margin-bottom: 8px; }
+
+.font-picker { position: relative; }
+.font-current { width: 100%; justify-content: space-between; font-size: 16px; }
+.font-menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+.font-menu .row { align-items: center; }
+.font-menu .toggle { margin: 0; flex: none; }
+.font-list { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; }
+.font-list button {
+  width: 100%;
+  justify-content: space-between;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  padding: 6px;
+  font-size: 17px;
+  text-align: start;
+}
+.font-list button.on, .font-list button:hover { background: var(--accent-soft); }
+.font-list .muted { font-family: system-ui, sans-serif; flex: none; }
+.add-font { border-top: 1px solid var(--border); padding-top: 6px; }
+
+.blank-plate { margin-top: 6px; font-size: 13px; }
+.blank-plate-form { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+
 /* --- dropzone --- */
 
 .dropzone-wrap { margin-bottom: 6px; }
@@ -241,6 +316,32 @@ button:disabled { opacity: 0.5; cursor: default; }
   background: var(--panel);
   border: 1px solid var(--border);
 }
+
+.view-tabs {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.view-tabs button { border: 0; border-radius: 0; padding: 5px 14px; background: var(--panel); }
+.view-tabs button + button { border-left: 1px solid var(--border); }
+.view-tabs button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+.preview2d { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.preview2d svg { flex: 1; min-height: 0; width: 100%; padding: 52px 16px 0; touch-action: none; }
+.preview2d .plate { stroke: none; }
+.preview2d .plate-edge { fill: none; stroke: var(--muted); stroke-width: 0.3; pointer-events: none; }
+.preview-hint { margin: 0; padding: 6px 16px 10px; text-align: center; }
+.text-shape { cursor: grab; stroke: transparent; stroke-width: 1.2; paint-order: stroke; }
+.text-shape:active { cursor: grabbing; }
+.text-shape.emboss, .text-shape.engrave { stroke: var(--muted); stroke-width: 0.25; }
+.text-shape.engrave { stroke-dasharray: 0.6 0.4; }
+.text-shape[fill="none"] { fill: color-mix(in srgb, var(--muted) 25%, transparent); }
+.text-shape.selected { stroke: var(--accent); stroke-width: 0.4; }
 
 /* --- results --- */
 

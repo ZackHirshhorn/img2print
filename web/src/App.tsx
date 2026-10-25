@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "./api/client";
 import { Dropzone } from "./components/Dropzone";
 import { Footer } from "./components/Footer";
+import { Preview2D } from "./components/Preview2D";
 import { Preview3D } from "./components/Preview3D";
 import { Results } from "./components/Results";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -12,7 +13,7 @@ const AUTO_BUILD_DELAY = 600;   // ms after the last change
 
 export function App() {
   const info = useQuery({ queryKey: ["info"], queryFn: api.info, staleTime: Infinity });
-  const { upload, settings, material, autoBuild, model, setModel } = useStore();
+  const { upload, settings, material, autoBuild, model, setModel, view, setView } = useStore();
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [builtFor, setBuiltFor] = useState<string | null>(null);
@@ -64,11 +65,18 @@ export function App() {
           <SettingsPanel />
         </aside>
         <section className="pane centre" aria-label="Preview">
-          <Preview3D model={model} />
+          <div className="view-tabs" role="tablist" aria-label="View">
+            <button type="button" role="tab" aria-selected={view === "design"} className={view === "design" ? "on" : ""}
+              onClick={() => setView("design")}>Design</button>
+            <button type="button" role="tab" aria-selected={view === "3d"} className={view === "3d" ? "on" : ""}
+              onClick={() => setView("3d")}>3D</button>
+          </div>
+          {view === "design" ? <Preview2D /> : <Preview3D model={model} />}
           {building && <div className="busy">Building…</div>}
         </section>
         <aside className="pane right">
-          <Results info={info.data} model={model} building={building} error={error} stale={stale} onBuild={build} />
+          <Results info={info.data} model={model} building={building} error={error} stale={stale}
+            onBuild={() => { setView("3d"); build(); }} />
         </aside>
       </main>
       <Footer version={info.data?.version} />

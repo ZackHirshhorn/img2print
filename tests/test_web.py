@@ -305,3 +305,56 @@ def test_cli_settings_file(tmp_path, capsys):
     bad.write_text('{"colour": 3}')
     with pytest.raises(SystemExit):
         main([str(src), "--settings", str(bad)])
+
+
+# --- text and fonts ---
+
+def test_fonts_list_and_file(client):
+    r = client.get("/api/fonts")
+    assert r.status_code == 200
+    heebo = next(f for f in r.json() if f["family"] == "Heebo")
+    assert heebo["source"] == "bundled" and "hebrew" in heebo["subsets"]
+    r = client.get("/api/fonts/file", params={"family": "Heebo", "weight": 700})
+    assert r.status_code == 200 and r.headers["content-type"] == "font/ttf" and len(r.content) > 10_000
+    assert client.get("/api/fonts/file", params={"family": "Nope"}).status_code == 422
+
+
+def test_add_font(client):
+    from img2print.fonts import BUNDLED_DIR
+    data = (BUNDLED_DIR / "Heebo[wght].ttf").read_bytes()
+    r = client.post("/api/fonts", files={"file": ("mine.ttf", data)})
+    assert r.status_code == 200 and r.json()["family"] == "Heebo" and r.json()["source"] == "local"
+    r = client.post("/api/fonts", files={"file": ("bad.ttf", b"nope")})
+    assert r.status_code == 422 and "could not read" in error(r)
+
+
+def test_trace_draws_texts(client):
+    u = upload(client, png())
+    texts = [{"text": "שלום", "x": 0.5, "y": 0.5, "size": 10}, {"text": ""}, {"text": "a", "font": "Nope"}]
+    r = client.post("/api/trace", json={"upload_id": u["id"], "settings": {"width": 100, "texts": texts}})
+    assert r.status_code == 200, r.text
+    shapes = r.json()["texts"]
+    assert len(shapes) == 3
+    assert shapes[0]["path"].startswith("M") and shapes[0]["error"] is None
+    assert shapes[1] == {"path": "", "error": None}
+    assert "unknown font" in shapes[2]["error"]
+    # The trace itself is shared with the same settings without texts.
+    plain = client.post("/api/trace", json={"upload_id": u["id"], "settings": {"width": 100}}).json()
+    assert plain["layers"] == r.json()["layers"]
+
+
+def test_build_with_texts(client):
+    u = upload(client, png())
+    texts = [{"text": "שלום", "color": "red", "y": 0.8, "size": 8},
+             {"text": "abc", "style": "engrave", "color": None, "y": 0.2, "size": 8, "depth": 0.5}]
+    r = client.post("/api/models", json={"upload_id": u["id"], "settings": {"width": 100, "stacking": "top",
+                                                                             "texts": texts}})
+    assert r.status_code == 200, r.text
+    parts = {p["name"]: p for p in r.json()["parts"]}
+    assert set(parts) == {"white", "black", "red"} and all(p["watertight"] for p in parts.values())
+    r = client.post("/api/models", json={"upload_id": u["id"], "settings": {
+        "texts": [{"text": "a", "font": "Nope"}]}})
+    assert r.status_code == 422 and "unknown font" in error(r)
+    r = client.post("/api/models", json={"upload_id": u["id"], "settings": {
+        "texts": [{"text": "a", "color": None}]}})
+    assert r.status_code == 422 and "needs a colour" in error(r)

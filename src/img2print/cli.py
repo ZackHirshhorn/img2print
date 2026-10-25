@@ -10,6 +10,7 @@ from pathlib import Path
 from .pipeline import build_model, trace_layers
 from .recipes import FACES, SHAPES
 from .settings import Settings
+from .text import STYLES, Text
 
 SIZES = ("width", "height", "longest")
 
@@ -63,6 +64,15 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--min-area", type=float, help="drop specks smaller than this, mm^2 (default 0.05)")
     ap.add_argument("--simplify", type=float, help="contour simplification tolerance, mm (default 0.02)")
     ap.add_argument("--page", type=int, help="PDF page to use, from 1 (default 1)")
+    ap.add_argument("--text", help="put this text in the middle of the design; for several texts or to place "
+                                   "them, use a --settings file (its \"texts\" list)")
+    ap.add_argument("--font", help="font family for --text: bundled, in your font folder, or any Google Font "
+                                   "(downloaded on first use; default Heebo)")
+    ap.add_argument("--text-size", type=float, help="letter height of --text, mm (default 10)")
+    ap.add_argument("--text-style", choices=STYLES,
+                    help="paint: flush, in its own colour (default); emboss: stands out; engrave: cut in")
+    ap.add_argument("--text-color", help="filament colour of --text (default black); 'surface' keeps the colour "
+                                         "under embossed or engraved text")
     ap.add_argument("--settings", help="read all options from a JSON settings file; other options override it")
     ap.add_argument("--save-settings", help="also write the options used to this JSON settings file")
     ap.add_argument("--out", help="output path prefix (default: next to the image)")
@@ -77,6 +87,12 @@ def main(argv: list[str] | None = None) -> None:
     if "palette" in args:
         args["palette"] = [c.strip() for c in args["palette"].split(",") if c.strip()]
     shape_size = args.pop("shape_size", None)
+    # --text and its options, as Text fields.
+    text = {field: args.pop(flag) for flag, field in (("text", "text"), ("font", "font"), ("text_size", "size"),
+                                                      ("text_style", "style"), ("text_color", "color"))
+            if flag in args}
+    if text.get("color") == "surface":
+        text["color"] = None
     if "shape" in args or "face" in args or shape_size:
         args["recipe"] = "shape"
     try:
@@ -89,6 +105,10 @@ def main(argv: list[str] | None = None) -> None:
             args["stacking"] = "top"
         elif any(k in args for k in ("base", "layer", "raised")) and settings.stacking == "full":
             args["stacking"] = "layers"
+        if "text" in text:
+            args["texts"] = [Text(**text)]
+        elif text:
+            raise ValueError("--font, --text-size, --text-style and --text-color go with --text")
         settings = replace(settings, **args)
         if shape_size:
             settings = replace(settings, **_shape_size(shape_size, settings.shape))

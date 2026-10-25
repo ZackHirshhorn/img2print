@@ -38,6 +38,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/fonts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Fonts
+         * @description Every font that text can use: bundled, your own, then all of Google Fonts.
+         */
+        get: operations["list_fonts_api_fonts_get"];
+        put?: never;
+        /**
+         * Add Font
+         * @description Add your own font file (TTF, OTF, WOFF, WOFF2); it then appears in the list.
+         */
+        post: operations["add_font_api_fonts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/fonts/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Font File
+         * @description The font file itself, for showing it in the browser. Google fonts are downloaded on first use.
+         */
+        get: operations["font_file_api_fonts_file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/uploads": {
         parameters: {
             query?: never;
@@ -161,6 +205,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_add_font_api_fonts_post */
+        Body_add_font_api_fonts_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_api_uploads_post */
         Body_upload_api_uploads_post: {
             /** File */
@@ -218,6 +267,33 @@ export interface components {
             name: string;
             /** Color */
             color: string | null;
+        };
+        /** Font */
+        Font: {
+            /** Family */
+            family: string;
+            /**
+             * Variants
+             * @description '400', '700', '400i' (weight, i for italic)
+             */
+            variants: string[];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "bundled" | "local" | "google";
+            /** Category */
+            category: string;
+            /**
+             * Subsets
+             * @description scripts covered, e.g. hebrew, latin
+             */
+            subsets: string[];
+            /**
+             * Popularity
+             * @description Google's rank, lower is more popular; 0 for other fonts
+             */
+            popularity: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -293,6 +369,8 @@ export interface components {
          *
          *     Colour mode is used when colors or palette is set; otherwise the image becomes a
          *     2-colour (black / white) plate. page counts from 1, as on the command line.
+         *
+         *     texts are blocks of text put on the design: painted, embossed or engraved, see text.Text.
          */
         Settings: {
             /**
@@ -407,6 +485,8 @@ export interface components {
              * @default 1
              */
             page: number;
+            /** Texts */
+            texts?: components["schemas"]["Text"][];
         };
         /** Swatch */
         Swatch: {
@@ -422,6 +502,104 @@ export interface components {
              * @description fraction of the image, 0..1
              */
             share: number;
+        };
+        /**
+         * Text
+         * @description One block of text on the design. The design is the traced artwork; padding is outside it.
+         *
+         *     x, y      the centre of the text, as fractions of the design: x from its left edge, y from
+         *               its top edge (0.5, 0.5 is the middle). Values outside 0..1 put text in the padding;
+         *               anything past the plate's edge is cut off.
+         *     size      letter height, mm: the height of capitals and Hebrew letters.
+         *     rotation  degrees, counter-clockwise.
+         *     style     paint, emboss or engrave, see STYLES.
+         *     color     the text's filament. None (emboss and engrave only) keeps the colour of the surface.
+         *     depth     how far embossed text stands out, or engraved text is cut in, mm.
+         */
+        Text: {
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /**
+             * Font
+             * @default Heebo
+             */
+            font: string;
+            /**
+             * Weight
+             * @default 700
+             */
+            weight: number;
+            /**
+             * Italic
+             * @default false
+             */
+            italic: boolean;
+            /**
+             * Size
+             * @default 10
+             */
+            size: number;
+            /**
+             * X
+             * @default 0.5
+             */
+            x: number;
+            /**
+             * Y
+             * @default 0.5
+             */
+            y: number;
+            /**
+             * Rotation
+             * @default 0
+             */
+            rotation: number;
+            /**
+             * Align
+             * @default center
+             */
+            align: string;
+            /**
+             * Line Spacing
+             * @default 1
+             */
+            line_spacing: number;
+            /**
+             * Letter Spacing
+             * @default 0
+             */
+            letter_spacing: number;
+            /**
+             * Style
+             * @default paint
+             */
+            style: string;
+            /**
+             * Color
+             * @default black
+             */
+            color: string | null;
+            /**
+             * Depth
+             * @default 0.6
+             */
+            depth: number;
+        };
+        /** TextShape */
+        TextShape: {
+            /**
+             * Path
+             * @description SVG path data in mm, y down, even-odd fill; empty when the text is empty
+             */
+            path: string;
+            /**
+             * Error
+             * @description why the text could not be drawn, e.g. an unknown font
+             */
+            error?: string | null;
         };
         /** Trace */
         Trace: {
@@ -440,6 +618,11 @@ export interface components {
              * @description background first
              */
             layers: components["schemas"]["Layer"][];
+            /**
+             * Texts
+             * @description one per settings.texts, in the same order
+             */
+            texts?: components["schemas"]["TextShape"][];
         };
         /** TraceRequest */
         TraceRequest: {
@@ -533,6 +716,92 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    list_fonts_api_fonts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Font"][];
+                };
+            };
+        };
+    };
+    add_font_api_fonts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_add_font_api_fonts_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Font"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    font_file_api_fonts_file_get: {
+        parameters: {
+            query: {
+                family: string;
+                weight?: number;
+                italic?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
