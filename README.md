@@ -103,6 +103,8 @@ can only be one colour:
 - Three styles: **paint** (flush, set apart only by its colour), **emboss** (stands `depth` mm out)
   and **engrave** (cut `depth` mm in). Embossed or engraved text without a colour keeps the colour
   of the surface; engraved text with a colour shows it at the bottom of the letters.
+- `thicken` (mm) widens every stroke, for thin fonts or small letters: strokes under a 0.4 mm
+  nozzle may not print. The web app warns when a text has them.
 - Text in a colour the design already has prints in that filament; a new colour adds a part.
   By layers, the text's colour gets the top band, so every layer still holds one filament.
 - Fonts: Heebo is bundled. Any Google Fonts family works by name and is downloaded on first use
@@ -118,7 +120,8 @@ can only be one colour:
             "x": 0.5, "y": 0.85, "style": "emboss", "color": null, "depth": 0.6}]}
 ```
 
-In the web app, add texts in the Text section and drag them on the Design view.
+In the web app, add texts in the Text section and drag them on the Design view (scroll to zoom,
+drag the background to pan).
 
 ## Python API
 

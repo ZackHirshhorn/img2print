@@ -94,6 +94,8 @@ browser (React SPA) ──JSON + upload──► FastAPI (img2print.web) ──�
 - `extrude` drops points a hair apart and falls back to manifold's triangulation when earcut gives an open mesh (seen with letters cut by the plate edge).
 - API: `GET /api/fonts`, `GET /api/fonts/file`, `POST /api/fonts`; `/api/trace` returns `texts[{path, error}]`.
 - Frontend: Text section (editor, font picker with Hebrew filter and previews, add a font file), a Design (2D) tab with drag-to-move and double-click to add, and "start with a blank plate" for text-only signs.
+- `Text.thicken` widens strokes; `text.thin_strokes()` measures the share under a 0.4 mm nozzle, returned as `texts[].thin` and shown as a warning with a one-click "Thicken by 0.2 mm".
+- Design view: wheel zoom around the cursor, drag the background to pan, +/−/Fit buttons; outlines keep their screen width.
 - Checked in headless Chromium: blank plate, font change, drag, build (watertight), logo with text.
 
 ## Remaining

@@ -103,10 +103,12 @@ class Text:
 
 def thin_strokes(shape: BaseGeometry, width: float = NOZZLE) -> float:
     """The share of a shape (0..1) in strokes thinner than width mm: what an opening by half
-    the width wipes away. Above a few percent, the text needs thicken or a bolder weight."""
+    the width wipes away. Above a few percent, the text needs thicken or a bolder weight.
+    Strokes within 5% of the width count as wide enough: curves are only followed to 0.01 mm."""
     if shape.is_empty:
         return 0.0
-    kept = shape.buffer(-width / 2).buffer(width / 2)
+    r = 0.95 * width / 2
+    kept = shape.buffer(-r).buffer(r)
     return max(0.0, 1 - kept.area / shape.area)
 
 

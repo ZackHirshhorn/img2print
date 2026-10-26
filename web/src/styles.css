@@ -336,14 +336,29 @@ textarea { height: auto; width: 100%; resize: vertical; line-height: 1.4; }
 .preview2d { position: absolute; inset: 0; display: flex; flex-direction: column; }
 .preview2d svg { flex: 1; min-height: 0; width: 100%; padding: 52px 16px 0; touch-action: none; }
 .preview2d .plate { stroke: none; }
-.preview2d .plate-edge { fill: none; stroke: var(--muted); stroke-width: 0.3; pointer-events: none; }
+.preview2d .plate-edge { fill: none; stroke: var(--muted); stroke-width: 1.5px; pointer-events: none; }
+/* Outlines keep their width on screen at any zoom. */
+.preview2d .plate-edge, .text-shape { vector-effect: non-scaling-stroke; }
 .preview-hint { margin: 0; padding: 6px 16px 10px; text-align: center; }
-.text-shape { cursor: grab; stroke: transparent; stroke-width: 1.2; paint-order: stroke; }
+.preview2d svg { cursor: grab; }
+.preview2d svg.panning { cursor: grabbing; }
+.zoom-buttons {
+  position: absolute;
+  bottom: 40px;
+  right: 12px;
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.zoom-buttons button { border: 0; border-radius: 0; padding: 5px 11px; background: var(--panel); min-width: 34px; }
+.zoom-buttons button + button { border-left: 1px solid var(--border); }
+.text-shape { cursor: grab; stroke: transparent; stroke-width: 8px; paint-order: stroke; }
 .text-shape:active { cursor: grabbing; }
-.text-shape.emboss, .text-shape.engrave { stroke: var(--muted); stroke-width: 0.25; }
-.text-shape.engrave { stroke-dasharray: 0.6 0.4; }
+.text-shape.emboss, .text-shape.engrave { stroke: var(--muted); stroke-width: 1px; }
+.text-shape.engrave { stroke-dasharray: 4px 3px; }
 .text-shape[fill="none"] { fill: color-mix(in srgb, var(--muted) 25%, transparent); }
-.text-shape.selected { stroke: var(--accent); stroke-width: 0.4; }
+.text-shape.selected { stroke: var(--accent); stroke-width: 2px; }
 
 /* --- results --- */
 
