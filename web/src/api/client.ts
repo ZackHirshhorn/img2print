@@ -58,6 +58,7 @@ export const DEFAULT_TEXT: TextItem = {
   style: "paint",
   color: "black",
   depth: 0.6,
+  thicken: 0,
 };
 
 export class ApiError extends Error {

@@ -515,6 +515,7 @@ export interface components {
          *     style     paint, emboss or engrave, see STYLES.
          *     color     the text's filament. None (emboss and engrave only) keeps the colour of the surface.
          *     depth     how far embossed text stands out, or engraved text is cut in, mm.
+         *     thicken   makes every stroke this much wider, mm, so thin fonts print (see thin_strokes()).
          */
         Text: {
             /**
@@ -587,6 +588,11 @@ export interface components {
              * @default 0.6
              */
             depth: number;
+            /**
+             * Thicken
+             * @default 0
+             */
+            thicken: number;
         };
         /** TextShape */
         TextShape: {
@@ -600,6 +606,12 @@ export interface components {
              * @description why the text could not be drawn, e.g. an unknown font
              */
             error?: string | null;
+            /**
+             * Thin
+             * @description share of the text in strokes thinner than a 0.4 mm nozzle, 0..1
+             * @default 0
+             */
+            thin: number;
         };
         /** Trace */
         Trace: {

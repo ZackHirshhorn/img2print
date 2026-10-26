@@ -13,6 +13,7 @@ const STYLE_HINTS: Record<string, string> = {
 };
 const LAYER_HINT = " By layers: text in its own colour gets the top layer, so it stands a layer above the rest.";
 const SURFACE = "";   // the colour select's value for "same as the surface"
+const THIN_WARNING = 0.03;   // share of the letters in strokes under 0.4 mm before we warn
 
 export function TextPanel() {
   const texts = useStore((s) => s.settings.texts);
@@ -51,7 +52,9 @@ function TextEditor({ index }: { index: number }) {
   const setText = useStore((s) => s.setText);
   const traced = useTrace();
   const set = (patch: Partial<TextItem>) => setText(index, patch);
-  const error = traced.data?.trace.texts?.[index]?.error;
+  const shape = traced.data?.trace.texts?.[index];
+  const error = shape?.error;
+  const thin = (shape?.thin ?? 0) > THIN_WARNING;
   const layers = traced.data?.trace.layers ?? [];
   const known = layers.some((l) => t.color && sameColor(l.color, t.color));
 
@@ -82,6 +85,16 @@ function TextEditor({ index }: { index: number }) {
       <WeightSelect text={t} onChange={set} />
 
       <NumberField label="Letter height" value={t.size} onChange={(size) => set({ size })} step={0.5} min={0.5} unit="mm" />
+      <NumberField label="Thicken strokes" value={t.thicken} onChange={(thicken) => set({ thicken })}
+        step={0.05} min={0} unit="mm" />
+      {thin && (
+        <p className="warn-text small">
+          Some strokes are thinner than a 0.4 mm nozzle and may not print.{" "}
+          <button type="button" className="link" onClick={() => set({ thicken: Math.round((t.thicken + 0.2) * 100) / 100 })}>
+            Thicken by 0.2 mm
+          </button>
+        </p>
+      )}
 
       <Segmented
         label="How the text stands apart"

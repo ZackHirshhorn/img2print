@@ -44,6 +44,7 @@ class Layer(BaseModel):
 class TextShape(BaseModel):
     path: str = Field(description="SVG path data in mm, y down, even-odd fill; empty when the text is empty")
     error: str | None = Field(None, description="why the text could not be drawn, e.g. an unknown font")
+    thin: float = Field(0.0, description="share of the text in strokes thinner than a 0.4 mm nozzle, 0..1")
 
 
 class Trace(BaseModel):

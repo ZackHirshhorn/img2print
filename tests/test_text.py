@@ -316,3 +316,15 @@ def test_extrude_falls_back_when_the_triangulation_fails(monkeypatch):
     plate = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)], [[(2, 2), (4, 2), (4, 4), (2, 4)]])
     mesh = img2print.extrude(plate, 2)
     assert mesh.is_volume and mesh.volume == pytest.approx(96 * 2)
+
+
+def test_thicken_widens_strokes():
+    from img2print.text import thin_strokes
+    thin = Text("שלום", font="Heebo", weight=100, size=6)
+    fat = Text("שלום", font="Heebo", weight=100, size=6, thicken=0.4)
+    assert thin_strokes(thin.shape(100, 50)) > 0.2      # a 6 mm Thin font: hairlines
+    assert thin_strokes(fat.shape(100, 50)) < 0.05
+    assert fat.shape(100, 50).area > 1.5 * thin.shape(100, 50).area
+    assert thin_strokes(Text("שלום", weight=900, size=10).shape(100, 50)) < 0.05
+    with pytest.raises(ValueError, match="thicken"):
+        Text("a", thicken=-1)

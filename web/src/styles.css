@@ -217,6 +217,8 @@ textarea { height: auto; width: 100%; resize: vertical; line-height: 1.4; }
 .text-editor textarea { margin-bottom: 8px; font-size: 16px; }
 .text-editor input[type="color"] { flex: 0 0 40px; height: 32px; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--input); }
 .text-more { margin-top: 4px; }
+.warn-text { color: var(--error); margin: -4px 0 10px; }
+.warn-text .link { padding: 0; color: inherit; font-size: inherit; }
 .text-more summary { cursor: pointer; color: var(--muted); margin-bottom: 8px; }
 
 .font-picker { position: relative; }

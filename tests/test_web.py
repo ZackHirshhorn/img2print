@@ -336,7 +336,8 @@ def test_trace_draws_texts(client):
     shapes = r.json()["texts"]
     assert len(shapes) == 3
     assert shapes[0]["path"].startswith("M") and shapes[0]["error"] is None
-    assert shapes[1] == {"path": "", "error": None}
+    assert shapes[1] == {"path": "", "error": None, "thin": 0.0}
+    assert 0 <= shapes[0]["thin"] < 0.05   # 10 mm bold Heebo prints fine
     assert "unknown font" in shapes[2]["error"]
     # The trace itself is shared with the same settings without texts.
     plain = client.post("/api/trace", json={"upload_id": u["id"], "settings": {"width": 100}}).json()

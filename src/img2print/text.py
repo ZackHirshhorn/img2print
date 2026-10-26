@@ -33,6 +33,7 @@ from .geometry import as_polygons
 STYLES = ("paint", "emboss", "engrave")
 ALIGNS = ("left", "center", "right")
 TOLERANCE = 0.01   # mm: how closely glyph curves are followed
+NOZZLE = 0.4       # mm: strokes thinner than this may not print
 
 
 @dataclass
@@ -47,6 +48,7 @@ class Text:
     style     paint, emboss or engrave, see STYLES.
     color     the text's filament. None (emboss and engrave only) keeps the colour of the surface.
     depth     how far embossed text stands out, or engraved text is cut in, mm.
+    thicken   makes every stroke this much wider, mm, so thin fonts print (see thin_strokes()).
     """
 
     text: str = ""
@@ -63,6 +65,7 @@ class Text:
     style: str = "paint"
     color: str | None = "black"
     depth: float = 0.6
+    thicken: float = 0.0
 
     def __post_init__(self):
         self.validate()
@@ -75,6 +78,8 @@ class Text:
         for k in ("size", "line_spacing", "depth"):
             if not getattr(self, k) > 0:
                 raise ValueError(f"text {k} must be positive, got {getattr(self, k)}")
+        if self.thicken < 0:
+            raise ValueError(f"text thicken cannot be negative, got {self.thicken}")
         if not 1 <= self.weight <= 1000:
             raise ValueError(f"text weight must be between 1 and 1000, got {self.weight}")
         if self.color is None:
@@ -89,9 +94,20 @@ class Text:
         """The text as 2D shapes on a design of this size (mm, origin bottom-left, y up)."""
         geom = text_shape(self.text, self.font, self.size, weight=self.weight, italic=self.italic,
                           align=self.align, line_spacing=self.line_spacing, letter_spacing=self.letter_spacing)
+        if self.thicken:
+            geom = geom.buffer(self.thicken / 2)
         if self.rotation:
             geom = affinity.rotate(geom, self.rotation, origin=(0, 0))
         return affinity.translate(geom, self.x * width, (1 - self.y) * height)
+
+
+def thin_strokes(shape: BaseGeometry, width: float = NOZZLE) -> float:
+    """The share of a shape (0..1) in strokes thinner than width mm: what an opening by half
+    the width wipes away. Above a few percent, the text needs thicken or a bolder weight."""
+    if shape.is_empty:
+        return 0.0
+    kept = shape.buffer(-width / 2).buffer(width / 2)
+    return max(0.0, 1 - kept.area / shape.area)
 
 
 def text_shape(

@@ -28,6 +28,7 @@ from ..image import group_colors, load_rgb, open_image
 from ..model import DENSITY, Model
 from ..pipeline import INK, PAPER, build_model, trace_layers
 from ..settings import Settings
+from ..text import thin_strokes
 from ..trace import Artwork
 from ..vector import load_vector, vector_kind
 from .cache import Cache
@@ -307,7 +308,8 @@ def _text_shapes(settings: Settings, width: float, height: float) -> list[TextSh
     out = []
     for text in settings.texts:
         try:
-            out.append(TextShape(path=svg_path(text.shape(width, height), height)))
+            shape = text.shape(width, height)
+            out.append(TextShape(path=svg_path(shape, height), thin=thin_strokes(shape)))
         except (ValueError, OSError) as e:
             out.append(TextShape(path="", error=str(e)))
     return out
